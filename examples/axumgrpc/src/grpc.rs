@@ -1,4 +1,7 @@
-use crate::{db::Database, models::Invoice, AppState};
+use crate::{
+    db::Database, feeders::InvoiceFeeder, models::Invoice, repository::InvoiceRepository, AppState,
+};
+use cache_kit::strategy::CacheStrategy;
 use tonic::{transport::Server, Response, Status};
 use uuid::Uuid;
 
@@ -27,10 +30,26 @@ impl InvoicesService for InvoicesHandler {
         let invoice_id = Uuid::parse_str(&req.invoice_id)
             .map_err(|_| Status::invalid_argument("Invalid invoice ID"))?;
 
-        let invoice = Database::get_invoice(&self.state.db, &invoice_id)
+        // Use cache with Refresh strategy (cache-first, fallback to DB)
+        let repo = InvoiceRepository::new(self.state.db.clone());
+        let mut feeder = InvoiceFeeder::new(invoice_id.to_string());
+
+        self.state
+            .cache_service
+            .execute::<Invoice, _, _>(&mut feeder, &repo, CacheStrategy::Refresh)
             .await
-            .map_err(|e| Status::internal(e.to_string()))?
+            .map_err(|e| Status::internal(format!("Cache error: {}", e)))?;
+
+        let invoice = feeder
+            .invoice
             .ok_or_else(|| Status::not_found("Invoice not found"))?;
+
+        let cache_source = if feeder.cache_hit {
+            "cache"
+        } else {
+            "database"
+        };
+        tracing::info!("Retrieved invoice {} from {}", invoice_id, cache_source);
 
         Ok(Response::new(invoice_to_proto(&invoice)))
     }
@@ -102,11 +121,20 @@ impl InvoicesService for InvoicesHandler {
             .map_err(|e| Status::internal(e.to_string()))?;
         }
 
-        // Reload invoice to include line items in response
-        let invoice = Database::get_invoice(&self.state.db, &invoice.id)
+        // Fetch complete invoice with line items and cache it
+        let repo = InvoiceRepository::new(self.state.db.clone());
+        let mut feeder = InvoiceFeeder::new(invoice.id.to_string());
+        self.state
+            .cache_service
+            .execute::<Invoice, _, _>(&mut feeder, &repo, CacheStrategy::Refresh)
             .await
-            .map_err(|e| Status::internal(e.to_string()))?
+            .map_err(|e| Status::internal(format!("Cache error: {}", e)))?;
+
+        let invoice = feeder
+            .invoice
             .ok_or_else(|| Status::internal("Invoice not found after creation"))?;
+
+        tracing::info!("Created and cached invoice {}", invoice.id);
 
         Ok(Response::new(invoice_to_proto(&invoice)))
     }
@@ -122,6 +150,24 @@ impl InvoicesService for InvoicesHandler {
         let invoice = Database::update_invoice_status(&self.state.db, &invoice_id, &req.status)
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
+
+        // Invalidate cache and refresh with updated data
+        let repo = InvoiceRepository::new(self.state.db.clone());
+        let mut feeder = InvoiceFeeder::new(invoice_id.to_string());
+        if let Err(e) = self
+            .state
+            .cache_service
+            .execute::<Invoice, _, _>(&mut feeder, &repo, CacheStrategy::Invalidate)
+            .await
+        {
+            tracing::warn!(
+                "Failed to invalidate cache for invoice {}: {}",
+                invoice_id,
+                e
+            );
+        }
+
+        tracing::info!("Updated and invalidated cache for invoice {}", invoice_id);
 
         Ok(Response::new(invoice_to_proto(&invoice)))
     }

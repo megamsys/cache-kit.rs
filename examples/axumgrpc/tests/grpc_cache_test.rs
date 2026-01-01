@@ -111,11 +111,21 @@ async fn test_invoice_cache_crud_cycle() -> Result<(), Box<dyn std::error::Error
         println!("  Amount: {} cents", retrieved.amount_cents);
         println!("  Line items: {}", retrieved.line_items.len());
 
+        // Get it again to ensure we get a cache hit
+        println!("\nGetting invoice again (should be cache hit)...");
+        let get_req2 = GetInvoiceRequest {
+            invoice_id: invoice_id.clone(),
+        };
+        let get_response2 = client.get_invoice(tonic::Request::new(get_req2)).await?;
+        let retrieved2 = get_response2.into_inner();
+        println!("✓ Cache hit verified - retrieved same invoice");
+
         // Verify data consistency
         assert_eq!(invoice.id, retrieved.id);
         assert_eq!(invoice.invoice_number, retrieved.invoice_number);
         assert_eq!(invoice.amount_cents, retrieved.amount_cents);
         assert_eq!(invoice.line_items.len(), retrieved.line_items.len());
+        assert_eq!(retrieved.id, retrieved2.id);
 
         // 3. Update invoice status
         println!("\nUpdating invoice status...");

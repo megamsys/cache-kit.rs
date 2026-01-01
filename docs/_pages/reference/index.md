@@ -2,6 +2,8 @@
 layout: single
 title: Reference
 has_children: true
+permalink: /reference/
+date: 2025-12-10
 ---
 
 # Reference Documentation

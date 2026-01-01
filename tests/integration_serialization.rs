@@ -1,6 +1,6 @@
 //! Integration tests for cache serialization with real backends.
 //!
-//! These tests verify that the Bincode serialization with versioned envelopes
+//! These tests verify that the Postcard serialization with versioned envelopes
 //! works correctly across different cache backends (InMemory, Redis, Memcached).
 
 use cache_kit::backend::{CacheBackend, InMemoryBackend};
@@ -61,7 +61,7 @@ impl CacheEntity for Product {
 // ============================================================================
 
 #[tokio::test]
-async fn test_inmemory_backend_bincode_roundtrip() {
+async fn test_inmemory_backend_postcard_roundtrip() {
     let backend = InMemoryBackend::new();
     let expander = CacheExpander::new(backend.clone());
 
@@ -258,21 +258,21 @@ async fn test_serialization_size_comparison_with_json() {
         active: true,
     };
 
-    // Bincode with envelope
-    let bincode_bytes = serialize_for_cache(&user).unwrap();
+    // Postcard with envelope
+    let postcard_bytes = serialize_for_cache(&user).unwrap();
 
     // JSON (for comparison)
     let json_bytes = serde_json::to_vec(&user).unwrap();
 
-    // Bincode should be smaller or similar size
+    // Postcard should be smaller or similar size
     // (With envelope overhead, might be close, but typically still smaller)
-    println!("Bincode size: {} bytes", bincode_bytes.len());
+    println!("Postcard size: {} bytes", postcard_bytes.len());
     println!("JSON size: {} bytes", json_bytes.len());
 
-    // For this small struct, Bincode should be competitive
+    // For this small struct, Postcard should be competitive
     assert!(
-        bincode_bytes.len() < json_bytes.len() * 2,
-        "Bincode should not be more than 2x larger than JSON"
+        postcard_bytes.len() < json_bytes.len() * 2,
+        "Postcard should not be more than 2x larger than JSON"
     );
 }
 
@@ -352,7 +352,7 @@ async fn test_backend_raw_bytes_validation() {
 }
 
 #[tokio::test]
-async fn test_backend_stores_bincode_not_json() {
+async fn test_backend_stores_postcard_not_json() {
     let backend = InMemoryBackend::new();
     let expander = CacheExpander::new(backend.clone());
 
@@ -381,7 +381,7 @@ async fn test_backend_stores_bincode_not_json() {
     assert_eq!(&raw_bytes[0..4], b"CKIT");
     assert_ne!(raw_bytes[0], b'{'); // NOT JSON
 
-    // Verify it IS valid Bincode with envelope
+    // Verify it IS valid Postcard with envelope
     let deserialized: User = deserialize_from_cache(&raw_bytes).unwrap();
     assert_eq!(deserialized, user);
 }

@@ -9,7 +9,7 @@
 //! 1. **Roundtrip Property**: deserialize(serialize(x)) == x for ANY x
 //! 2. **Determinism Property**: serialize(x) == serialize(x) always
 //! 3. **Envelope Property**: All serialized data has correct magic + version
-//! 4. **Size Property**: Bincode is competitive with JSON
+//! 4. **Size Property**: Postcard is competitive with JSON
 
 use cache_kit::serialization::{
     deserialize_from_cache, serialize_for_cache, CACHE_MAGIC, CURRENT_SCHEMA_VERSION,
@@ -288,27 +288,27 @@ proptest! {
 // ============================================================================
 
 proptest! {
-    /// Property: Bincode is competitive with JSON size
+    /// Property: Postcard is competitive with JSON size
     ///
-    /// Note: Bincode might be slightly larger for very small structs due to
+    /// Note: Postcard might be slightly larger for very small structs due to
     /// envelope overhead (8 bytes), but should be smaller for larger structs
     #[test]
     fn prop_user_size_efficiency(user in arb_user()) {
-        let bincode_bytes = serialize_for_cache(&user)
-            .expect("Bincode serialization should succeed");
+        let postcard_bytes = serialize_for_cache(&user)
+            .expect("Postcard serialization should succeed");
 
         let json_bytes = serde_json::to_vec(&user)
             .expect("JSON serialization should succeed");
 
-        // For larger data, Bincode should be smaller
+        // For larger data, Postcard should be smaller
         // For tiny data, envelope overhead might make it larger
-        // Property: Bincode should never be MORE than 2x JSON size
+        // Property: Postcard should never be MORE than 2x JSON size
         prop_assert!(
-            bincode_bytes.len() < json_bytes.len() * 2,
-            "Bincode too large: {} bytes vs JSON {} bytes (ratio: {:.2}x)",
-            bincode_bytes.len(),
+            postcard_bytes.len() < json_bytes.len() * 2,
+            "Postcard too large: {} bytes vs JSON {} bytes (ratio: {:.2}x)",
+            postcard_bytes.len(),
             json_bytes.len(),
-            bincode_bytes.len() as f64 / json_bytes.len() as f64
+            postcard_bytes.len() as f64 / json_bytes.len() as f64
         );
     }
 }

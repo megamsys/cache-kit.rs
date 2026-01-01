@@ -18,7 +18,7 @@ pub use redis::{PoolStats, RedisBackend, RedisConfig};
 /// Trait for cache backend implementations.
 ///
 /// Abstracts storage operations, allowing swappable backends.
-/// Implementations: InMemory (default), Redis, Memcached, RocksDB, Database, S3, Mock, etc.
+/// Implementations: InMemory (default), Redis, Memcached, RocksDB, Database, S3, etc.
 ///
 /// **IMPORTANT:** All methods use `&self` instead of `&mut self` to allow concurrent access.
 /// Backend implementations should use interior mutability (RwLock, Mutex, or external storage).
