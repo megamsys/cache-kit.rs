@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: cache-kit-actix-postgres
+    environment:
+      POSTGRES_USER: cachekit
+      POSTGRES_PASSWORD: cachekit_dev
+      POSTGRES_DB: cachekit_actix
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cachekit -d cachekit_actix"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - cache-kit-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  cache-kit-network:
+    driver: bridge

@@ -1,0 +1,123 @@
+name: Performance Benchmarks
+
+on:
+  workflow_dispatch: # Only allow manual triggering to avoid slowing down CI
+
+env:
+  RUST_BACKTRACE: 1
+
+jobs:
+  benchmark:
+    name: Run Performance Benchmarks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Run benchmarks
+        run: cargo bench --no-fail-fast
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results
+          path: target/criterion/
+          retention-days: 30
+
+      - name: Generate benchmark summary
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "## 📊 Performance Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Benchmarks completed successfully." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Benchmark Groups Run:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ InMemory Backend (set, get, delete, exists)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ CacheExpander (refresh_hit, refresh_miss, invalidate, bypass)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Serialization (performance)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📁 Full results available in workflow artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_View detailed HTML report in artifacts: \`target/criterion/report/index.html\`_" >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment PR with benchmark info
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const message = `## 📊 Performance Benchmark Results
+
+            ✅ Benchmarks completed successfully.
+
+            ### What was tested:
+            - **InMemory Backend**: set, get_hit, get_miss, delete, exists
+            - **CacheExpander**: refresh_hit, refresh_miss, invalidate, bypass, fresh_hit
+            - **Serialization**: Postcard performance across payload sizes (100B - 100KB)
+
+            📁 **View detailed results**: Download \`benchmark-results\` artifact from the workflow run.
+
+            💡 **Tip**: To compare against baseline locally:
+            \`\`\`bash
+            make perf-save    # Save current as baseline
+            make perf-diff    # Compare after changes
+            \`\`\`
+
+            ---
+            🤖 _Automated benchmark run on commit ${context.sha.substring(0, 7)}_`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            });
+
+  # Optional: Performance regression check
+  # This job compares current benchmarks against a saved baseline
+  regression-check:
+    name: Check for Performance Regressions
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Need full history for baseline comparison
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Try to restore baseline from cache
+      - name: Restore baseline from cache
+        id: cache-baseline
+        uses: actions/cache@v4
+        with:
+          path: target/criterion
+          key: benchmark-baseline-${{ github.base_ref || 'main' }}
+
+      - name: Run benchmarks with baseline comparison
+        if: steps.cache-baseline.outputs.cache-hit == 'true'
+        run: |
+          echo "📊 Comparing against cached baseline..."
+          cargo bench --no-fail-fast -- --baseline main || true
+
+      - name: Run benchmarks without baseline
+        if: steps.cache-baseline.outputs.cache-hit != 'true'
+        run: |
+          echo "⚠️  No baseline found - running benchmarks to establish one"
+          cargo bench --no-fail-fast -- --save-baseline main
+
+      - name: Save new baseline
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache@v4
+        with:
+          path: target/criterion
+          key: benchmark-baseline-main-${{ github.sha }}

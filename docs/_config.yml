@@ -1,0 +1,131 @@
+# Jekyll configuration for cache-kit documentation
+# Using Minimal Mistakes theme
+
+# Site settings
+title: "cache-kit"
+masthead_title: "cache-kit"
+title_separator: "|"
+subtitle: ""
+description: "Async, ORM-agnostic caching boundaries for Rust services"
+tagline: "Async, ORM-agnostic caching boundaries for Rust services"
+baseurl: "/cache-kit.rs"
+url: "https://cachekit.org"
+repository: "megamsys/cache-kit.rs"
+
+# Theme
+theme: minimal-mistakes-jekyll
+minimal_mistakes_skin: "dark" # "air", "aqua", "contrast", "dark", "dirt", "neon", "mint", "plum", "sunrise"
+
+# Site Author
+author:
+  name: "Kishore Kumar Neelamegam"
+  avatar: "/assets/images/bio-photo.png"
+  bio: "Async, ORM-agnostic caching for Rust"
+  location: "Global"
+  links:
+    - label: "GitHub"
+      icon: "fab fa-fw fa-github"
+      url: "https://github.com/megamsys/cache-kit.rs"
+    - label: "crates.io"
+      icon: "fas fa-fw fa-box"
+      url: "https://crates.io/crates/cache-kit"
+
+# Site Footer
+footer:
+  links:
+    - label: "GitHub"
+      icon: "fab fa-fw fa-github"
+      url: "https://github.com/megamsys/cache-kit.rs"
+    - label: "crates.io"
+      icon: "fas fa-fw fa-box"
+      url: "https://crates.io/crates/cache-kit"
+
+# Collections
+collections:
+  pages:
+    output: true
+    permalink: /:path/
+
+# Reading Files
+include:
+  - _pages
+exclude:
+  - README.md
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
+
+# Conversion
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  input: GFM
+  hard_wrap: false
+  auto_ids: true
+  footnote_nr: 1
+  entity_output: as_char
+  toc_levels: 1..6
+  smart_quotes: lsquo,rsquo,ldquo,rdquo
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    css_class: 'highlight'
+    block:
+      line_numbers: false
+
+# Outputting
+permalink: /:title/
+timezone: UTC
+
+# Plugins
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
+  - jekyll-gist
+  - jekyll-include-cache
+
+# SEO
+locale: "en-US"
+
+# Social Sharing
+twitter:
+  username: &twitter "indykish"
+social:
+  type: Organization
+  name: cache-kit
+  links:
+    - "https://github.com/megamsys/cache-kit.rs"
+    - "https://x.com/indykish"
+
+# Analytics
+analytics:
+  provider: false
+
+# Comments
+comments:
+  provider: false
+
+# Search
+search: true
+search_full_content: true
+search_provider: lunr
+
+# Defaults
+defaults:
+  # Pages collection
+  - scope:
+      path: ""
+      type: pages
+    values:
+      layout: single
+      author_profile: false
+      read_time: false
+      comments: false
+      share: false
+      related: false
+      search: true
+      sidebar:
+        nav: "docs"

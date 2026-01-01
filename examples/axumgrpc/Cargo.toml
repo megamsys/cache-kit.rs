@@ -1,0 +1,42 @@
+[package]
+name = "axumgrpc"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[lib]
+name = "axumgrpc"
+path = "src/lib.rs"
+
+[[bin]]
+name = "axumgrpc"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1.41", features = ["full"] }
+axum = "0.8"
+tower = "0.5"
+tower-http = { version = "0.5", features = ["trace"] }
+tonic = { version = "0.14", features = ["transport"] }
+prost = { version = "0.14" }
+tonic-prost = { version = "0.14" }
+
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "chrono", "uuid"] }
+uuid = { version = "1.19", features = ["v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+postcard = { version = "1.0", features = ["use-std"] }
+
+cache-kit = { path = "../../", features = ["redis", "inmemory"] }
+redis = { version = "1.0", optional = true, features = ["tokio-comp", "connection-manager"] }
+
+tracing = "0.1"
+tracing-subscriber = "0.3"
+anyhow = "1.0"
+
+[build-dependencies]
+tonic-prost-build = "0.14"
+
+[dev-dependencies]

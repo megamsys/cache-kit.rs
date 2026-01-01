@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: cache-kit-axum-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: cache_kit
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./migrations:/docker-entrypoint-initdb.d
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cache_kit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - cache-kit-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  cache-kit-network:
+    driver: bridge

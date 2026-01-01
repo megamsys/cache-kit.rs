@@ -1,0 +1,50 @@
+# Main navigation
+main:
+  - title: "Documentation"
+    url: /
+  - title: "Installation"
+    url: /installation
+  - title: "Concepts"
+    url: /concepts
+  - title: "GitHub"
+    url: https://github.com/megamsys/cache-kit.rs
+
+# Documentation sidebar
+docs:
+  - title: Getting Started
+    children:
+      - title: "Introduction"
+        url: /
+      - title: "Installation"
+        url: /installation/
+      - title: "Installation for Agents"
+        url: /installation-agents/
+      - title: "Quick Start (Request Lifecycle)"
+        url: /guides/quick-start-request-lifecycle/
+
+  - title: Core Concepts
+    children:
+      - title: "Concepts"
+        url: /concepts/
+      - title: "Async Programming Model"
+        url: /async-model/
+      - title: "Serialization"
+        url: /serialization/
+
+  - title: Integration
+    children:
+      - title: "Database Compatibility"
+        url: /database-compatibility/
+      - title: "API Frameworks"
+        url: /api-frameworks/
+      - title: "Cache Backends"
+        url: /backends/
+
+  - title: Guides
+    children:
+      - title: "Failure Modes & Resilience"
+        url: /guides/failure-modes/
+      - title: "Monitoring & Metrics"
+        url: /guides/monitoring/
+      - title: "Troubleshooting"
+        url: /guides/troubleshooting/

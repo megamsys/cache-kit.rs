@@ -1,0 +1,25 @@
+[package]
+name = "axummetrics"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "axummetrics"
+path = "main.rs"
+
+[dependencies]
+tokio = { version = "1.41", features = ["full"] }
+axum = "0.8"
+tower = "0.5"
+tower-http = { version = "0.5", features = ["trace"] }
+
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+cache-kit = { path = "../../", features = ["inmemory"] }
+
+tracing = "0.1"
+tracing-subscriber = "0.3"
+anyhow = "1.0"
+env_logger = "0.11"
+log = "0.4"

@@ -1,0 +1,38 @@
+services:
+  # Redis Service for cache-kit integration tests
+  redis:
+    image: redis:7-alpine
+    container_name: cache-kit-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - cache-kit-network
+    restart: unless-stopped
+
+  # Memcached Service for cache-kit integration tests
+  memcached:
+    image: memcached:1.6-alpine
+    container_name: cache-kit-memcached
+    ports:
+      - "${MEMCACHED_PORT:-11211}:11211"
+    command: memcached -m 64 -c 1024 -v
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "11211"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - cache-kit-network
+    restart: unless-stopped
+
+networks:
+  cache-kit-network:
+    driver: bridge
+    name: cache-kit-network

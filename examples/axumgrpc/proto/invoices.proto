@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package invoices;
+
+service InvoicesService {
+  rpc GetInvoice(GetInvoiceRequest) returns (InvoiceResponse);
+  rpc ListInvoices(ListInvoicesRequest) returns (ListInvoicesResponse);
+  rpc CreateInvoice(CreateInvoiceRequest) returns (InvoiceResponse);
+  rpc UpdateInvoiceStatus(UpdateInvoiceStatusRequest) returns (InvoiceResponse);
+}
+
+message GetInvoiceRequest {
+  string invoice_id = 1;
+}
+
+message ListInvoicesRequest {
+  string customer_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message CreateInvoiceRequest {
+  string customer_id = 1;
+  string invoice_number = 2;
+  int64 amount_cents = 3;
+  string due_at = 4; // RFC3339 timestamp
+  repeated LineItem line_items = 5;
+}
+
+message UpdateInvoiceStatusRequest {
+  string invoice_id = 1;
+  string status = 2;
+}
+
+message InvoiceResponse {
+  string id = 1;
+  string customer_id = 2;
+  string invoice_number = 3;
+  int64 amount_cents = 4;
+  string status = 5;
+  string issued_at = 6;
+  string due_at = 7;
+  repeated LineItem line_items = 8;
+  string created_at = 9;
+  string updated_at = 10;
+}
+
+message ListInvoicesResponse {
+  repeated InvoiceResponse invoices = 1;
+  int32 total = 2;
+}
+
+message LineItem {
+  string id = 1;
+  string description = 2;
+  int32 quantity = 3;
+  int64 unit_price_cents = 4;
+}
+
+message Customer {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  string created_at = 4;
+}

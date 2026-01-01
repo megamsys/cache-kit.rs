@@ -1,0 +1,19 @@
+source "https://rubygems.org"
+
+gem "jekyll", "~> 3.9"
+gem "minimal-mistakes-jekyll"
+gem "kramdown-parser-gfm"
+
+# Ruby 3.4+ compatibility
+gem "base64"
+gem "logger"
+gem "bigdecimal"
+gem "csv"
+gem "ostruct"
+
+group :jekyll_plugins do
+  gem "jekyll-seo-tag"
+  gem "jekyll-sitemap"
+  gem "jekyll-gist"
+  gem "jekyll-include-cache"
+end

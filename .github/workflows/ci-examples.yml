@@ -1,0 +1,86 @@
+name: CI - Examples (Actix+SQLx)
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "examples/actixsqlx/**"
+      - "src/**"
+      - ".github/workflows/ci-examples.yml"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "examples/actixsqlx/**"
+      - "src/**"
+      - ".github/workflows/ci-examples.yml"
+
+env:
+  RUST_BACKTRACE: 1
+
+jobs:
+  checks:
+    name: Checks (Format + Lint)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: examples/actixsqlx
+
+      - name: Check formatting
+        working-directory: examples/actixsqlx
+        run: cargo fmt -- --check
+
+      - name: Run clippy
+        working-directory: examples/actixsqlx
+        run: cargo clippy --all-targets -- -D warnings
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: checks
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: cachekit
+          POSTGRES_PASSWORD: cachekit_dev
+          POSTGRES_DB: cachekit_actix
+        options: >-
+          --health-cmd "pg_isready -U cachekit -d cachekit_actix"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: examples/actixsqlx
+
+      - name: Install SQLx CLI
+        run: cargo install sqlx-cli --no-default-features --features postgres
+
+      - name: Create database and run migrations
+        working-directory: examples/actixsqlx
+        env:
+          DATABASE_URL: postgres://cachekit:cachekit_dev@localhost:5432/cachekit_actix
+        run: |
+          sqlx database create || true
+          sqlx migrate run || true
+
+      - name: Run tests
+        working-directory: examples/actixsqlx
+        env:
+          DATABASE_URL: postgres://cachekit:cachekit_dev@localhost:5432/cachekit_actix
+        run: cargo test -- --test-threads=1
