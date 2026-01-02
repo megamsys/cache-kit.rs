@@ -3,6 +3,8 @@ layout: single
 title: Installation & Configuration
 description: "Getting started with cache-kit in your Rust project"
 permalink: /installation/
+nav_order: 2
+date: 2025-12-21
 ---
 
 ---
@@ -11,6 +13,12 @@ permalink: /installation/
 
 - **Rust:** 1.75 or later
 - **Tokio:** 1.41 or later (async runtime)
+
+---
+
+## For AI Agents & Automated Tools
+
+If you're using an AI agent, code generator, or automated tool to integrate cache-kit, see the [Installation for Agents](/cache-kit.rs/installation-agents/) page for structured, machine-readable setup information.
 
 ---
 
@@ -35,6 +43,82 @@ cache-kit uses feature flags to enable optional backends:
 | `redis`     | Redis backend with connection pooling | ❌ Optional |
 | `memcached` | Memcached backend                     | ❌ Optional |
 | `all`       | Enable all backends                   | ❌ Optional |
+
+---
+
+## Choosing Your API: CacheExpander vs CacheService
+
+cache-kit provides two APIs for cache operations. **For most use cases, use `CacheService`.**
+
+### Quick Decision Table
+
+| Scenario                           | Use              | Reason                        |
+| ---------------------------------- | ---------------- | ----------------------------- |
+| Building web service (Axum, Actix) | **CacheService** | Already Arc'd, clone is cheap |
+| Building a library                 | CacheExpander    | Flexibility in Arc wrapping   |
+| Uncertain                          | **CacheService** | 90% of use cases              |
+
+> **⚠️ Can't decide? Use CacheService.** It's simpler and covers most cases.
+
+> **📖 For deeper understanding:** See [Core Concepts](/cache-kit.rs/concepts/) for detailed explanations of `CacheExpander` and `CacheService`, including design philosophy, usage patterns, and examples throughout the documentation.
+
+### CacheService (Recommended for Web Applications)
+
+**Use CacheService when:**
+
+- Building web services (Axum, Actix, Rocket)
+- Need to share cache across threads
+- Want simple, ergonomic API
+
+**Key characteristics:**
+
+- Already wrapped in `Arc` internally
+- Implements `Clone` (cheap reference counting)
+- Methods: `.execute()`, `.execute_with_config()`
+- Perfect for dependency injection
+
+**Example:**
+
+```rust
+use cache_kit::{CacheService, backend::RedisBackend};
+
+// Create once at startup
+let cache = CacheService::new(backend);
+
+// Share across services (Clone is cheap - just Arc increment)
+let user_service = UserService::new(cache.clone());
+let product_service = ProductService::new(cache.clone());
+let order_service = OrderService::new(cache.clone());
+```
+
+### CacheExpander (Low-Level API)
+
+**Use CacheExpander when:**
+
+- Need custom Arc wrapping patterns
+- Building cache middleware or custom abstractions
+- Want explicit control over ownership
+
+**Key characteristics:**
+
+- No built-in Arc wrapper
+- Methods: `.with()`, `.with_config()`
+- Requires manual `Arc` wrapping for sharing
+
+**Example:**
+
+```rust
+use cache_kit::{CacheExpander, backend::RedisBackend};
+use std::sync::Arc;
+
+let expander = CacheExpander::new(backend);
+
+// Must wrap in Arc manually for sharing
+let cache = Arc::new(expander);
+let user_service = UserService::new(cache.clone());
+```
+
+---
 
 ### Basic Installation (InMemory Only)
 
@@ -175,94 +259,132 @@ The InMemory backend uses `DashMap` internally, providing:
 
 ```rust
 use cache_kit::{CacheService, backend::{RedisBackend, RedisConfig}};
+use std::time::Duration;
 
 let config = RedisConfig {
-    url: "redis://localhost:6379".to_string(),
-    max_connections: 10,
-    min_connections: 2,
-    connection_timeout_secs: 5,
+    host: "localhost".to_string(),
+    port: 6379,
+    username: None,
+    password: None,
+    database: 0,
+    pool_size: 16,
+    connection_timeout: Duration::from_secs(5),
 };
 
-let cache = CacheService::new(RedisBackend::new(config)?);
+let backend = RedisBackend::new(config).await?;
+let cache = CacheService::new(backend);
 ```
 
 #### Redis Configuration Options
 
-| Field                     | Type     | Default  | Description                   |
-| ------------------------- | -------- | -------- | ----------------------------- |
-| `url`                     | `String` | Required | Redis connection URL          |
-| `max_connections`         | `usize`  | `10`     | Maximum connection pool size  |
-| `min_connections`         | `usize`  | `2`      | Minimum idle connections      |
-| `connection_timeout_secs` | `u64`    | `5`      | Connection timeout in seconds |
+| Field                | Type             | Default       | Description                       |
+| -------------------- | ---------------- | ------------- | --------------------------------- |
+| `host`               | `String`         | `"localhost"` | Redis server hostname or IP       |
+| `port`               | `u16`            | `6379`        | Redis server port                 |
+| `username`           | `Option<String>` | `None`        | Redis username (Redis 6+)         |
+| `password`           | `Option<String>` | `None`        | Redis password for authentication |
+| `database`           | `u32`            | `0`           | Redis database number (0-15)      |
+| `pool_size`          | `u32`            | `16`          | Connection pool size              |
+| `connection_timeout` | `Duration`       | `5s`          | Connection timeout                |
 
-#### Redis URL Formats
+#### Configuration Examples
 
 ```rust
-// Local Redis
-"redis://localhost:6379"
+use std::time::Duration;
 
-// Remote Redis with password
-"redis://:password@example.com:6379"
+// Basic configuration (all defaults)
+let config = RedisConfig::default();
 
-// Redis with specific database
-"redis://localhost:6379/1"
+// Custom host and port
+let config = RedisConfig {
+    host: "redis.example.com".to_string(),
+    port: 6379,
+    ..Default::default()
+};
 
-// TLS connection
-"rediss://example.com:6379"
+// With authentication
+let config = RedisConfig {
+    host: "redis.example.com".to_string(),
+    port: 6379,
+    password: Some("secret".to_string()),
+    database: 1,
+    ..Default::default()
+};
+
+// With custom pool size
+let config = RedisConfig {
+    host: "localhost".to_string(),
+    port: 6379,
+    pool_size: 32,
+    connection_timeout: Duration::from_secs(10),
+    ..Default::default()
+};
 ```
 
 #### Environment-Based Configuration
 
 ```rust
 use std::env;
+use std::time::Duration;
 
-let redis_url = env::var("REDIS_URL")
-    .unwrap_or_else(|_| "redis://localhost:6379".to_string());
+let redis_host = env::var("REDIS_HOST")
+    .unwrap_or_else(|_| "localhost".to_string());
+let redis_port = env::var("REDIS_PORT")
+    .ok()
+    .and_then(|p| p.parse().ok())
+    .unwrap_or(6379);
+let redis_password = env::var("REDIS_PASSWORD").ok();
 
 let config = RedisConfig {
-    url: redis_url,
+    host: redis_host,
+    port: redis_port,
+    password: redis_password,
     ..Default::default()
 };
 
-let backend = RedisBackend::new(config)?;
+let backend = RedisBackend::new(config).await?;
 ```
 
 ### Memcached Backend
 
 ```rust
 use cache_kit::{CacheService, backend::{MemcachedBackend, MemcachedConfig}};
+use std::time::Duration;
 
 let config = MemcachedConfig {
     servers: vec!["localhost:11211".to_string()],
-    max_connections: 10,
-    min_connections: 2,
+    pool_size: 16,
+    connection_timeout: Duration::from_secs(5),
 };
 
-let cache = CacheService::new(MemcachedBackend::new(config)?);
+let cache = CacheService::new(MemcachedBackend::new(config).await?);
 ```
 
 #### Memcached Configuration Options
 
-| Field             | Type          | Default  | Description                  |
-| ----------------- | ------------- | -------- | ---------------------------- |
-| `servers`         | `Vec<String>` | Required | Memcached server addresses   |
-| `max_connections` | `usize`       | `10`     | Maximum connection pool size |
-| `min_connections` | `usize`       | `2`      | Minimum idle connections     |
+| Field                | Type          | Default  | Description                |
+| -------------------- | ------------- | -------- | -------------------------- |
+| `servers`            | `Vec<String>` | Required | Memcached server addresses |
+| `pool_size`          | `u32`         | `16`     | Connection pool size       |
+| `connection_timeout` | `Duration`    | `5s`     | Connection timeout         |
 
 #### Multiple Memcached Servers
 
 ```rust
+use cache_kit::backend::{MemcachedBackend, MemcachedConfig};
+use std::time::Duration;
+
 let config = MemcachedConfig {
     servers: vec![
         "memcached-01:11211".to_string(),
         "memcached-02:11211".to_string(),
         "memcached-03:11211".to_string(),
     ],
-    max_connections: 20,
-    min_connections: 5,
+    pool_size: 20,
+    connection_timeout: Duration::from_secs(10),
 };
 
-let backend = MemcachedBackend::new(config)?;
+let backend = MemcachedBackend::new(config).await?;
 ```
 
 ---
@@ -301,6 +423,7 @@ Create a configuration module for your application:
 ```rust
 use cache_kit::{CacheService, backend::{InMemoryBackend, RedisBackend, RedisConfig}};
 use std::env;
+use std::time::Duration;
 
 pub enum Environment {
     Development,
@@ -316,23 +439,26 @@ impl Environment {
     }
 }
 
-pub fn create_cache_service() -> CacheService<impl cache_kit::backend::CacheBackend> {
+pub async fn create_cache_service() -> Result<CacheService<impl cache_kit::backend::CacheBackend>, Box<dyn std::error::Error>> {
     match Environment::from_env() {
         Environment::Development => {
-            CacheService::new(InMemoryBackend::new())
+            Ok(CacheService::new(InMemoryBackend::new()))
         }
         Environment::Production => {
-            let redis_url = env::var("REDIS_URL")
-                .expect("REDIS_URL must be set in production");
+            let redis_host = env::var("REDIS_HOST")
+                .unwrap_or_else(|_| "localhost".to_string());
+            let redis_password = env::var("REDIS_PASSWORD").ok();
 
             let config = RedisConfig {
-                url: redis_url,
-                max_connections: 20,
-                min_connections: 5,
-                connection_timeout_secs: 10,
+                host: redis_host,
+                password: redis_password,
+                pool_size: 20,
+                connection_timeout: Duration::from_secs(10),
+                ..Default::default()
             };
 
-            CacheService::new(RedisBackend::new(config).expect("Failed to connect to Redis"))
+            let backend = RedisBackend::new(config).await?;
+            Ok(CacheService::new(backend))
         }
     }
 }
@@ -343,7 +469,7 @@ Usage:
 ```rust
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cache = create_cache_service();
+    let cache = create_cache_service().await?;
 
     // Your application logic
     Ok(())
@@ -417,26 +543,6 @@ mod tests {
 }
 ```
 
-### Test Isolation
-
-Each test should create its own backend instance to avoid interference:
-
-```rust
-#[tokio::test]
-async fn test_cache_hit() {
-    let backend = InMemoryBackend::new();  // Fresh instance
-    let mut expander = CacheExpander::new(backend);
-    // Test logic
-}
-
-#[tokio::test]
-async fn test_cache_miss() {
-    let backend = InMemoryBackend::new();  // Separate instance
-    let mut expander = CacheExpander::new(backend);
-    // Test logic
-}
-```
-
 ---
 
 ## Production Checklist
@@ -444,11 +550,11 @@ async fn test_cache_miss() {
 Before deploying cache-kit to production:
 
 - [ ] **Backend selected:** Redis or Memcached for production
-- [ ] **Connection pooling configured:** Set appropriate `max_connections`
+- [ ] **Connection pooling configured:** Set `pool_size` in config (default: 16) or via `REDIS_POOL_SIZE`/`MEMCACHED_POOL_SIZE` environment variables
 - [ ] **TTL policies defined:** Set TTLs based on data freshness requirements
 - [ ] **Error handling implemented:** Handle cache failures gracefully
 - [ ] **Monitoring enabled:** Track cache hit/miss rates
-- [ ] **Environment variables set:** `REDIS_URL` or `MEMCACHED_SERVERS`
+- [ ] **Environment variables set:** `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_POOL_SIZE` (for Redis) or `MEMCACHED_SERVERS`, `MEMCACHED_POOL_SIZE` (for Memcached)
 - [ ] **Fallback strategy:** Application works if cache is unavailable
 - [ ] **Load tested:** Verify performance under expected load
 
@@ -461,57 +567,19 @@ Before deploying cache-kit to production:
 ```rust
 use cache_kit::{CacheService, backend::{RedisBackend, RedisConfig}};
 
-let cache = CacheService::new(RedisBackend::new(config)?);
+let backend = RedisBackend::new(config).await?;
+let cache = CacheService::new(backend);
 
 // CacheService is Clone - easily share across services
 let user_service = UserService::new(cache.clone());
 let product_service = ProductService::new(cache.clone());
 ```
 
-### Pattern 2: Multiple Cache Backends
-
-```rust
-use cache_kit::{CacheService, backend::{RedisBackend, RedisConfig}};
-
-// User cache
-let user_backend = RedisBackend::new(user_config)?;
-let user_cache = CacheService::new(user_backend);
-
-// Product cache
-let product_backend = RedisBackend::new(product_config)?;
-let product_cache = CacheService::new(product_backend);
-```
-
-### Pattern 3: Read-Through Cache
-
-```rust
-use cache_kit::{CacheService, DataRepository, CacheFeed, strategy::CacheStrategy, backend::RedisBackend};
-
-pub struct CachedRepository<R> {
-    repository: R,
-    cache: CacheService<RedisBackend>,
-}
-
-impl<R: DataRepository<User>> CachedRepository<R> {
-    pub async fn get_user(&self, id: &str) -> cache_kit::Result<Option<User>> {
-        let mut feeder = UserFeeder {
-            id: id.to_string(),
-            user: None,
-        };
-
-        // Always use Refresh strategy for read-through
-        self.cache.execute(&mut feeder, &self.repository, CacheStrategy::Refresh).await?;
-
-        Ok(feeder.user)
-    }
-}
-```
-
 ---
 
 ## Next Steps
 
-- Learn about [Database & ORM compatibility](database-compatibility)
-- Explore [Cache backend options](backends) in detail
-- Review [Serialization formats](serialization)
+- Learn about [Database & ORM compatibility](/cache-kit.rs/database-compatibility/)
+- Explore [Cache backend options](/cache-kit.rs/backends/) in detail
+- Review [Serialization formats](/cache-kit.rs/serialization/)
 - See the [Actix + SQLx example](https://github.com/megamsys/cache-kit.rs/tree/main/examples/actixsqlx)

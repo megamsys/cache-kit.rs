@@ -192,7 +192,7 @@ cargo run --example advanced_builder
 
 ```bash
 make up
-FEATURES=--all-features make test
+make test FEATURES="--all-features"
 ```
 
 For more examples and guides, see the [documentation](http://cachekit.org/).

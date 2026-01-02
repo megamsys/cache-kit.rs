@@ -5,7 +5,7 @@
 use crate::backend::CacheBackend;
 use crate::entity::CacheEntity;
 use crate::error::Result;
-use crate::expander::CacheExpander;
+use crate::expander::{CacheExpander, OperationConfig};
 use crate::feed::CacheFeed;
 use crate::observability::CacheMetrics;
 use crate::repository::DataRepository;
@@ -115,9 +115,57 @@ impl<B: CacheBackend> CacheService<B> {
             .await
     }
 
+    /// Execute a cache operation with advanced configuration.
+    ///
+    /// This method allows per-operation configuration such as TTL override and retry logic,
+    /// while working seamlessly with Arc-wrapped services.
+    ///
+    /// # Arguments
+    ///
+    /// - `feeder`: Entity feeder (implements `CacheFeed<T>`)
+    /// - `repository`: Data repository (implements `DataRepository<T>`)
+    /// - `strategy`: Cache strategy (Fresh, Refresh, Invalidate, Bypass)
+    /// - `config`: Operation configuration (TTL override, retry count)
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let cache = CacheService::new(InMemoryBackend::new());
+    /// let mut feeder = UserFeeder { id: "user_123".to_string(), user: None };
+    /// let repo = UserRepository::new(pool);
+    ///
+    /// let config = OperationConfig::default()
+    ///     .with_ttl(Duration::from_secs(300))
+    ///     .with_retry(3);
+    ///
+    /// cache.execute_with_config(&mut feeder, &repo, CacheStrategy::Refresh, config).await?;
+    /// let user = feeder.user;
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Same error cases as `execute()`, plus retry-related failures.
+    pub async fn execute_with_config<T, F, R>(
+        &self,
+        feeder: &mut F,
+        repository: &R,
+        strategy: CacheStrategy,
+        config: OperationConfig,
+    ) -> Result<()>
+    where
+        T: CacheEntity,
+        F: CacheFeed<T>,
+        R: DataRepository<T>,
+        T::Key: FromStr,
+    {
+        self.expander
+            .with_config::<T, F, R>(feeder, repository, strategy, config)
+            .await
+    }
+
     /// Get a reference to the underlying expander.
     ///
-    /// Use this if you need direct access to expander methods like `builder()`.
+    /// Use this if you need direct access to expander methods.
     pub fn expander(&self) -> &CacheExpander<B> {
         &self.expander
     }
@@ -232,5 +280,42 @@ mod tests {
         for handle in handles {
             handle.await.expect("Task failed");
         }
+    }
+
+    #[tokio::test]
+    async fn test_cache_service_execute_with_config() {
+        use std::time::Duration;
+
+        let backend = InMemoryBackend::new();
+        let service = CacheService::new(backend);
+
+        let mut repo = InMemoryRepository::new();
+        repo.insert(
+            "1".to_string(),
+            TestEntity {
+                id: "1".to_string(),
+                value: "test_value".to_string(),
+            },
+        );
+
+        let mut feeder = GenericFeeder::new("1".to_string());
+
+        // Test with custom config
+        let config = OperationConfig::default()
+            .with_ttl(Duration::from_secs(300))
+            .with_retry(3);
+
+        service
+            .execute_with_config::<TestEntity, _, _>(
+                &mut feeder,
+                &repo,
+                CacheStrategy::Refresh,
+                config,
+            )
+            .await
+            .expect("Failed to execute with config");
+
+        assert!(feeder.data.is_some());
+        assert_eq!(feeder.data.expect("Data not found").value, "test_value");
     }
 }

@@ -6,14 +6,12 @@
 //!
 //! ```bash
 //! # Option 1: Use Makefile (recommended)
-//! make test-redis          # Automatically starts Redis and runs tests
+//! make test FEATURES="--features redis"     # Automatically starts Redis and runs tests
 //!
 //! # Option 2: Manual setup
-//! docker run -d -p 6379:6379 redis:7-alpine
+//! make up
 //! cargo test --features redis --test redis_integration_test
 //!
-//! # Option 3: Custom Redis URL
-//! TEST_REDIS_URL=redis://custom-host:6379 make test-redis-local
 //! ```
 //!
 //! ## Environment Variables
@@ -782,7 +780,7 @@ async fn test_e2e_cache_flow_with_redis() {
     println!("✓ Redis cache hit successful");
 
     // Cleanup
-    backend.clone().delete(cache_key).await.ok();
+    backend.delete(cache_key).await.ok();
 }
 
 // =============================================================================
@@ -868,8 +866,8 @@ async fn test_e2e_multiple_entities_with_redis() {
     println!("✓ No cross-contamination between entity types");
 
     // Cleanup
-    backend.clone().delete(user_cache_key).await.ok();
-    backend.clone().delete(product_cache_key).await.ok();
+    backend.delete(user_cache_key).await.ok();
+    backend.delete(product_cache_key).await.ok();
 }
 
 // =============================================================================
@@ -944,11 +942,7 @@ async fn test_e2e_cache_strategies_with_redis() {
     println!("✓ Bypass strategy works (direct DB access)");
 
     // Cleanup
-    backend
-        .clone()
-        .delete("redis_test_user:e2e_strategy")
-        .await
-        .ok();
+    backend.delete("redis_test_user:e2e_strategy").await.ok();
 }
 
 // =============================================================================
@@ -1021,7 +1015,7 @@ async fn test_e2e_ttl_with_redis() {
     println!("✓ Cache repopulated with Refresh strategy");
 
     // Cleanup
-    backend.clone().delete("redis_test_user:e2e_ttl").await.ok();
+    backend.delete("redis_test_user:e2e_ttl").await.ok();
 }
 
 // =============================================================================
@@ -1111,7 +1105,7 @@ async fn test_e2e_concurrent_operations_with_redis() {
         {
             cached_count += 1;
             // Cleanup
-            backend.clone().delete(&cache_key).await.ok();
+            backend.delete(&cache_key).await.ok();
         }
     }
 

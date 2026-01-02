@@ -6,8 +6,6 @@ main:
     url: /installation
   - title: "Concepts"
     url: /concepts
-  - title: "Guides"
-    url: /guides/
   - title: "GitHub"
     url: https://github.com/megamsys/cache-kit.rs
 
@@ -18,41 +16,35 @@ docs:
       - title: "Introduction"
         url: /
       - title: "Installation"
-        url: /installation
-      - title: "Core Concepts"
-        url: /concepts
+        url: /installation/
+      - title: "Installation for Agents"
+        url: /installation-agents/
+      - title: "Quick Start (Request Lifecycle)"
+        url: /guides/quick-start-request-lifecycle/
 
-  - title: Architecture
+  - title: Core Concepts
     children:
-      - title: "Design Principles"
-        url: /design-principles
-      - title: "Async Model"
-        url: /async-model
+      - title: "Concepts"
+        url: /concepts/
+      - title: "Async Programming Model"
+        url: /async-model/
       - title: "Serialization"
-        url: /serialization
+        url: /serialization/
 
   - title: Integration
     children:
       - title: "Database Compatibility"
-        url: /database-compatibility
+        url: /database-compatibility/
       - title: "API Frameworks"
-        url: /api-frameworks
+        url: /api-frameworks/
       - title: "Cache Backends"
-        url: /backends
+        url: /backends/
 
   - title: Guides
     children:
-      - title: "All Guides"
-        url: /guides/
-      - title: "Examples"
-        url: /guides/examples
-      - title: "Testing"
-        url: /guides/testing
-      - title: "Performance"
-        url: /guides/performance
-      - title: "Monitoring"
-        url: /guides/monitoring
+      - title: "Failure Modes & Resilience"
+        url: /guides/failure-modes/
+      - title: "Monitoring & Metrics"
+        url: /guides/monitoring/
       - title: "Troubleshooting"
-        url: /guides/troubleshooting
-      - title: "Contributing"
-        url: /guides/contributing
+        url: /guides/troubleshooting/

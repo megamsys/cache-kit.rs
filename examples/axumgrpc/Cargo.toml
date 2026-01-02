@@ -18,8 +18,8 @@ axum = "0.8"
 tower = "0.5"
 tower-http = { version = "0.5", features = ["trace"] }
 tonic = { version = "0.14", features = ["transport"] }
-prost = "0.14"
-tonic-prost = "0.14"
+prost = { version = "0.14" }
+tonic-prost = { version = "0.14" }
 
 sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "chrono", "uuid"] }
 uuid = { version = "1.19", features = ["v7", "serde"] }

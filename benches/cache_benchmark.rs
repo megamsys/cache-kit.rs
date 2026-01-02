@@ -333,14 +333,14 @@ fn serialization_benchmarks(c: &mut Criterion) {
     for size in [100, 1_000, 10_000, 100_000].iter() {
         let entity = BenchEntity::new("test_id".to_string(), *size);
 
-        // Serialize (Bincode with envelope)
+        // Serialize (Postcard with envelope)
         group
             .throughput(Throughput::Bytes(*size as u64))
             .bench_with_input(BenchmarkId::new("serialize", size), &entity, |b, entity| {
                 b.iter(|| entity.serialize_for_cache());
             });
 
-        // Deserialize (Bincode with envelope)
+        // Deserialize (Postcard with envelope)
         let serialized = entity.serialize_for_cache().unwrap();
         group
             .throughput(Throughput::Bytes(*size as u64))

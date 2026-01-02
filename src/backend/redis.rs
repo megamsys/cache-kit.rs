@@ -312,11 +312,245 @@ mod tests {
         assert_eq!(config.host, "localhost");
         assert_eq!(config.port, 6379);
         assert_eq!(config.database, 0);
+        assert_eq!(config.pool_size, DEFAULT_POOL_SIZE);
     }
 
     #[test]
     fn test_redis_config_no_auth() {
         let config = RedisConfig::default();
         assert_eq!(config.connection_string(), "redis://localhost:6379/0");
+    }
+
+    #[test]
+    fn test_redis_config_custom_timeout() {
+        let timeout = Duration::from_secs(10);
+        let config = RedisConfig {
+            host: "localhost".to_string(),
+            port: 6379,
+            username: None,
+            password: None,
+            database: 0,
+            pool_size: 16,
+            connection_timeout: timeout,
+        };
+
+        assert_eq!(config.connection_timeout, timeout);
+    }
+
+    // Integration tests - require running Redis server
+    // Uncomment and run with: cargo test -- --ignored
+    #[tokio::test]
+    #[ignore]
+    async fn test_redis_backend_new() {
+        let config = RedisConfig {
+            host: "localhost".to_string(),
+            port: 6379,
+            username: None,
+            password: None,
+            database: 0,
+            pool_size: 16,
+            connection_timeout: Duration::from_secs(5),
+        };
+
+        let result = RedisBackend::new(config).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_redis_backend_from_connection_string() {
+        let result = RedisBackend::from_connection_string("redis://localhost:6379/0").await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_redis_backend_set_get() {
+        let backend = RedisBackend::from_connection_string("redis://localhost:6379/0")
+            .await
+            .expect("Failed to create backend");
+
+        backend
+            .set("test_key", b"test_value".to_vec(), None)
+            .await
+            .expect("Failed to set");
+
+        let result = backend.get("test_key").await.expect("Failed to get");
+        assert_eq!(result, Some(b"test_value".to_vec()));
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_redis_backend_get_miss() {
+        let backend = RedisBackend::from_connection_string("redis://localhost:6379/0")
+            .await
+            .expect("Failed to create backend");
+
+        let result = backend.get("nonexistent_key").await.expect("Failed to get");
+        assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_redis_backend_delete() {
+        let backend = RedisBackend::from_connection_string("redis://localhost:6379/0")
+            .await
+            .expect("Failed to create backend");
+
+        backend
+            .set("delete_key", b"value".to_vec(), None)
+            .await
+            .expect("Failed to set");
+
+        backend
+            .delete("delete_key")
+            .await
+            .expect("Failed to delete");
+
+        let result = backend.get("delete_key").await.expect("Failed to get");
+        assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_redis_backend_exists() {
+        let backend = RedisBackend::from_connection_string("redis://localhost:6379/0")
+            .await
+            .expect("Failed to create backend");
+
+        backend
+            .set("exists_key", b"value".to_vec(), None)
+            .await
+            .expect("Failed to set");
+
+        let exists = backend
+            .exists("exists_key")
+            .await
+            .expect("Failed to check exists");
+        assert!(exists);
+
+        let not_exists = backend
+            .exists("nonexistent")
+            .await
+            .expect("Failed to check exists");
+        assert!(!not_exists);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_redis_backend_mget() {
+        let backend = RedisBackend::from_connection_string("redis://localhost:6379/0")
+            .await
+            .expect("Failed to create backend");
+
+        backend
+            .set("mget_key1", b"value1".to_vec(), None)
+            .await
+            .expect("Failed to set");
+        backend
+            .set("mget_key2", b"value2".to_vec(), None)
+            .await
+            .expect("Failed to set");
+
+        let results = backend
+            .mget(&["mget_key1", "mget_key2", "nonexistent"])
+            .await
+            .expect("Failed to mget");
+
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0], Some(b"value1".to_vec()));
+        assert_eq!(results[1], Some(b"value2".to_vec()));
+        assert_eq!(results[2], None);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_redis_backend_mdelete() {
+        let backend = RedisBackend::from_connection_string("redis://localhost:6379/0")
+            .await
+            .expect("Failed to create backend");
+
+        backend
+            .set("mdelete_key1", b"value1".to_vec(), None)
+            .await
+            .expect("Failed to set");
+        backend
+            .set("mdelete_key2", b"value2".to_vec(), None)
+            .await
+            .expect("Failed to set");
+
+        backend
+            .mdelete(&["mdelete_key1", "mdelete_key2"])
+            .await
+            .expect("Failed to mdelete");
+
+        let result1 = backend.get("mdelete_key1").await.expect("Failed to get");
+        let result2 = backend.get("mdelete_key2").await.expect("Failed to get");
+        assert_eq!(result1, None);
+        assert_eq!(result2, None);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_redis_backend_ttl() {
+        let backend = RedisBackend::from_connection_string("redis://localhost:6379/0")
+            .await
+            .expect("Failed to create backend");
+
+        backend
+            .set(
+                "ttl_key",
+                b"expires_soon".to_vec(),
+                Some(Duration::from_secs(2)),
+            )
+            .await
+            .expect("Failed to set");
+
+        let result = backend.get("ttl_key").await.expect("Failed to get");
+        assert_eq!(result, Some(b"expires_soon".to_vec()));
+
+        // Wait for expiration
+        tokio::time::sleep(Duration::from_secs(3)).await;
+
+        let expired = backend.get("ttl_key").await.expect("Failed to get");
+        assert_eq!(expired, None);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_redis_backend_health_check() {
+        let backend = RedisBackend::from_connection_string("redis://localhost:6379/0")
+            .await
+            .expect("Failed to create backend");
+
+        let healthy = backend
+            .health_check()
+            .await
+            .expect("Failed to check health");
+        assert!(healthy);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_redis_backend_clear_all() {
+        let backend = RedisBackend::from_connection_string("redis://localhost:6379/0")
+            .await
+            .expect("Failed to create backend");
+
+        backend
+            .set("clear_key1", b"value1".to_vec(), None)
+            .await
+            .expect("Failed to set");
+        backend
+            .set("clear_key2", b"value2".to_vec(), None)
+            .await
+            .expect("Failed to set");
+
+        backend.clear_all().await.expect("Failed to clear");
+
+        let result1 = backend.get("clear_key1").await.expect("Failed to get");
+        let result2 = backend.get("clear_key2").await.expect("Failed to get");
+        assert_eq!(result1, None);
+        assert_eq!(result2, None);
     }
 }

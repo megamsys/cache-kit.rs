@@ -11,11 +11,10 @@ use cache_kit::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 mod metrics;
 
-use metrics::CacheMetrics;
+use metrics::PrometheusMetrics;
 
 /// User entity
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -87,14 +86,14 @@ impl DataRepository<User> for UserRepository {
 /// Application state
 #[derive(Clone)]
 struct AppState {
-    cache: Arc<Mutex<cache_kit::CacheExpander<InMemoryBackend>>>,
-    metrics: Arc<CacheMetrics>,
+    cache: Arc<cache_kit::CacheExpander<InMemoryBackend>>,
+    metrics: Arc<PrometheusMetrics>,
 }
 
 /// Get user by ID with caching
+/// Metrics are automatically recorded by the cache-kit library via CacheMetrics trait
 async fn get_user(Path(id): Path<String>, State(state): State<AppState>) -> Response {
-    let start = std::time::Instant::now();
-    let cache = state.cache.lock().await;
+    let cache = &state.cache;
 
     let mut feeder = UserFeeder {
         id: id.clone(),
@@ -108,13 +107,9 @@ async fn get_user(Path(id): Path<String>, State(state): State<AppState>) -> Resp
         .await
     {
         Ok(_) => {
-            let latency_us = start.elapsed().as_micros() as u64;
-
             if let Some(user) = feeder.user {
-                state.metrics.record_hit(latency_us);
                 (StatusCode::OK, Json(user)).into_response()
             } else {
-                state.metrics.record_miss(latency_us);
                 (
                     StatusCode::NOT_FOUND,
                     Json(json!({"error": "User not found"})),
@@ -122,16 +117,11 @@ async fn get_user(Path(id): Path<String>, State(state): State<AppState>) -> Resp
                     .into_response()
             }
         }
-        Err(e) => {
-            let latency_us = start.elapsed().as_micros() as u64;
-            state.metrics.record_error(latency_us);
-
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"error": format!("Cache error: {}", e)})),
-            )
-                .into_response()
-        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": format!("Cache error: {}", e)})),
+        )
+            .into_response(),
     }
 }
 
@@ -156,10 +146,11 @@ async fn main() {
         .try_init()
         .ok();
 
-    // Initialize cache
+    // Initialize cache with metrics
     let backend = InMemoryBackend::new();
-    let cache = Arc::new(Mutex::new(cache_kit::CacheExpander::new(backend)));
-    let metrics = Arc::new(CacheMetrics::new());
+    let metrics = Arc::new(PrometheusMetrics::new());
+    let cache =
+        Arc::new(cache_kit::CacheExpander::new(backend).with_metrics(Box::new((*metrics).clone())));
 
     let state = AppState { cache, metrics };
 

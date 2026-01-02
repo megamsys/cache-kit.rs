@@ -1,7 +1,7 @@
 name: Performance Benchmarks
 
 on:
-  workflow_dispatch:  # Only allow manual triggering to avoid slowing down CI
+  workflow_dispatch: # Only allow manual triggering to avoid slowing down CI
 
 env:
   RUST_BACKTRACE: 1
@@ -41,7 +41,7 @@ jobs:
           echo "### Benchmark Groups Run:" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ InMemory Backend (set, get, delete, exists)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ CacheExpander (refresh_hit, refresh_miss, invalidate, bypass)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Serialization (bincode performance)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Serialization (performance)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📁 Full results available in workflow artifacts" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -59,7 +59,7 @@ jobs:
             ### What was tested:
             - **InMemory Backend**: set, get_hit, get_miss, delete, exists
             - **CacheExpander**: refresh_hit, refresh_miss, invalidate, bypass, fresh_hit
-            - **Serialization**: Bincode performance across payload sizes (100B - 100KB)
+            - **Serialization**: Postcard performance across payload sizes (100B - 100KB)
 
             📁 **View detailed results**: Download \`benchmark-results\` artifact from the workflow run.
 
@@ -89,7 +89,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Need full history for baseline comparison
+          fetch-depth: 0 # Need full history for baseline comparison
 
       - uses: dtolnay/rust-toolchain@stable
 

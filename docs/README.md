@@ -10,17 +10,14 @@ docs/
 ├── Gemfile                  # Ruby dependencies for Jekyll
 ├── index.md                 # Homepage / Introduction
 ├── async-model.md           # Async Programming Model
-├── concepts.md              # Core Concepts
+├── concepts.md              # Core Concepts (includes Design Philosophy)
 ├── installation.md          # Installation & Configuration
 ├── database-compatibility.md # Database & ORM Compatibility
 ├── api-frameworks.md        # API Frameworks & Transport Layers
 ├── serialization.md         # Serialization Support
 ├── backends.md              # Cache Backend Support
-├── design-principles.md     # Positioning & Design Principles
 ├── guides/                  # User guides
 │   ├── index.md
-│   ├── contributing.md
-│   ├── examples.md
 │   └── testing.md
 └── reference/               # Technical reference
     └── index.md

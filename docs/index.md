@@ -2,6 +2,8 @@
 layout: single
 title: Introduction
 description: "cache-kit is an async, ORM-agnostic caching library for Rust services"
+nav_order: 1
+date: 2025-12-20
 ---
 
 # cache-kit
@@ -16,6 +18,7 @@ An async, ORM-agnostic caching library for Rust that helps you place **clear cac
 ## What cache-kit Is
 
 cache-kit is designed for modern Rust services that:
+
 - Use async runtimes (tokio)
 - Talk to databases through ORMs or query builders
 - Expose functionality via REST, gRPC, background workers, or API services
@@ -53,20 +56,17 @@ If you are looking for an all-in-one web stack, cache-kit is not that.
 A typical async Rust service using cache-kit looks like this:
 
 ```
-Database / ORM
-      ↓
-Domain Entities
-      ↓
-  cache-kit
-      ↓
-Cache Backend
+REST / gRPC / Workers / API Services
       ↓
 Application Logic
       ↓
-REST / gRPC / Workers / API Services
+  cache-kit
+      ↙        ↘
+Cache Backend   Database / ORM
 ```
 
 The same cached logic can be reused across:
+
 - REST endpoints
 - gRPC services
 - Background jobs
@@ -93,23 +93,25 @@ You bring your runtime — cache-kit fits into it.
 cache-kit does **not depend on any ORM**.
 
 It operates on:
+
 - Serializable entities
 - Deterministic cache keys
 - Explicit cache boundaries
 
 This means:
+
 - You can swap ORMs without rewriting cache logic
 - Cache behavior lives outside persistence concerns
 - Database models and cached entities remain your responsibility
 
 ### ORM Compatibility
 
-| ORM/Database Layer | Status | Example |
-|-------------------|--------|---------|
-| **SQLx** | ✅ Tier-1 | [actixsqlx example](https://github.com/megamsys/cache-kit.rs/tree/main/examples/actixsqlx) |
-| **SeaORM** | ✅ Compatible | Community contributions welcome |
-| **Diesel** | ✅ Compatible | Community contributions welcome |
-| **tokio-postgres** | ✅ Compatible | Works with any database layer |
+| ORM/Database Layer | Status        | Example                                                                                    |
+| ------------------ | ------------- | ------------------------------------------------------------------------------------------ |
+| **SQLx**           | ✅ Tier-1     | [actixsqlx example](https://github.com/megamsys/cache-kit.rs/tree/main/examples/actixsqlx) |
+| **SeaORM**         | ✅ Compatible | Community contributions welcome                                                            |
+| **Diesel**         | ✅ Compatible | Community contributions welcome                                                            |
+| **tokio-postgres** | ✅ Compatible | Works with any database layer                                                              |
 
 A reference implementation using **Actix + SQLx** is provided, but cache-kit is not tied to that stack.
 
@@ -125,6 +127,7 @@ cache-kit treats serialization as a **first-class, pluggable concern**.
 - **MessagePack** (Planned, community contributions welcome)
 
 Serialization is:
+
 - Independent of transport (HTTP, gRPC, workers)
 - Independent of cache backend (Redis, Memcached, InMemory)
 - Chosen explicitly by the user
@@ -134,6 +137,7 @@ Serialization is:
 Some serialization formats (including **Postcard**) do **not support certain data types** out of the box.
 
 For example:
+
 - `Decimal` types are **not supported** by Postcard
 - You must either:
   - Convert to supported primitives (e.g., store as `i64` cents instead of `Decimal` dollars)
@@ -151,10 +155,12 @@ See the [Serialization Support](serialization) page for detailed guidance.
 cache-kit supports multiple cache backends with explicit tiering:
 
 ### Tier-0: Production-Grade
+
 - **Redis** and Redis-compatible managed services (AWS ElastiCache, DigitalOcean Managed Redis)
 - **Memcached**
 
 ### Tier-1: Development & Testing
+
 - **InMemory** — Fast, zero-dependency, perfect for tests and local development
 
 Backends are treated as **replaceable implementations**, not architectural commitments.
@@ -166,11 +172,13 @@ See the [Cache Backend Support](backends) page for configuration details.
 ## Design Philosophy
 
 cache-kit focuses on:
+
 - **Boundaries, not ownership** — Integrate around ORMs, frameworks, and transports
 - **Explicit behavior, not hidden magic** — No surprises, predictable outcomes
 - **Integration, not lock-in** — Works with your existing stack
 
 It is safe to use:
+
 - Inside libraries
 - Inside SDKs
 - Inside large services
@@ -256,17 +264,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 - Learn the [core concepts](concepts) behind cache-kit
 - Understand [async usage patterns](async-model)
-- Explore [ORM and backend compatibility](database-compatibility)
+- Explore [ORM and backend compatibility](/cache-kit.rs/database-compatibility)
 - Review the [Actix + SQLx reference implementation](https://github.com/megamsys/cache-kit.rs/tree/main/examples/actixsqlx)
-
----
-
-## Project Status
-
-**Version:** 0.9.0
-**Status:** Production-ready ✅
-**Async Runtime:** tokio 1.41+
-**Rust Version:** 1.75+
 
 ---
 

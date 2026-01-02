@@ -1,8 +1,12 @@
+use cache_kit::observability::CacheMetrics;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 /// Simple metrics collection for cache operations
-pub struct CacheMetrics {
+/// Implements the cache-kit library's CacheMetrics trait
+#[derive(Clone)]
+pub struct PrometheusMetrics {
     hits: Arc<AtomicU64>,
     misses: Arc<AtomicU64>,
     errors: Arc<AtomicU64>,
@@ -10,40 +14,57 @@ pub struct CacheMetrics {
     latency_count: Arc<AtomicU64>,
 }
 
-impl CacheMetrics {
-    /// Create new metrics collector
-    pub fn new() -> Self {
-        CacheMetrics {
-            hits: Arc::new(AtomicU64::new(0)),
-            misses: Arc::new(AtomicU64::new(0)),
-            errors: Arc::new(AtomicU64::new(0)),
-            latency_total_us: Arc::new(AtomicU64::new(0)),
-            latency_count: Arc::new(AtomicU64::new(0)),
-        }
-    }
-
-    /// Record a cache hit
-    pub fn record_hit(&self, latency_us: u64) {
+impl CacheMetrics for PrometheusMetrics {
+    /// Record a cache hit (called automatically by cache-kit)
+    fn record_hit(&self, _key: &str, duration: Duration) {
+        let latency_us = duration.as_micros() as u64;
         self.hits.fetch_add(1, Ordering::Relaxed);
         self.latency_total_us
             .fetch_add(latency_us, Ordering::Relaxed);
         self.latency_count.fetch_add(1, Ordering::Relaxed);
     }
 
-    /// Record a cache miss
-    pub fn record_miss(&self, latency_us: u64) {
+    /// Record a cache miss (called automatically by cache-kit)
+    fn record_miss(&self, _key: &str, duration: Duration) {
+        let latency_us = duration.as_micros() as u64;
         self.misses.fetch_add(1, Ordering::Relaxed);
         self.latency_total_us
             .fetch_add(latency_us, Ordering::Relaxed);
         self.latency_count.fetch_add(1, Ordering::Relaxed);
     }
 
-    /// Record a cache error
-    pub fn record_error(&self, latency_us: u64) {
+    /// Record a cache error (called automatically by cache-kit)
+    fn record_error(&self, _key: &str, _error: &str) {
         self.errors.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Record a cache set operation (optional, called automatically by cache-kit)
+    fn record_set(&self, _key: &str, duration: Duration) {
+        let latency_us = duration.as_micros() as u64;
         self.latency_total_us
             .fetch_add(latency_us, Ordering::Relaxed);
         self.latency_count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Record a cache delete operation (optional, called automatically by cache-kit)
+    fn record_delete(&self, _key: &str, duration: Duration) {
+        let latency_us = duration.as_micros() as u64;
+        self.latency_total_us
+            .fetch_add(latency_us, Ordering::Relaxed);
+        self.latency_count.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+impl PrometheusMetrics {
+    /// Create new metrics collector
+    pub fn new() -> Self {
+        PrometheusMetrics {
+            hits: Arc::new(AtomicU64::new(0)),
+            misses: Arc::new(AtomicU64::new(0)),
+            errors: Arc::new(AtomicU64::new(0)),
+            latency_total_us: Arc::new(AtomicU64::new(0)),
+            latency_count: Arc::new(AtomicU64::new(0)),
+        }
     }
 
     /// Get cache hit rate (0.0 to 1.0)
@@ -131,7 +152,7 @@ cache_total_ops {}
     }
 }
 
-impl Default for CacheMetrics {
+impl Default for PrometheusMetrics {
     fn default() -> Self {
         Self::new()
     }

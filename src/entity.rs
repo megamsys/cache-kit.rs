@@ -49,13 +49,13 @@ pub trait CacheEntity: Send + Sync + Serialize + for<'de> Deserialize<'de> + Clo
 
     /// Serialize entity for cache storage.
     ///
-    /// Uses Bincode with versioned envelopes for all cache storage.
+    /// Uses Postcard with versioned envelopes for all cache storage.
     /// This method is NOT overridable to ensure consistency across all entities.
     ///
     /// # Format
     ///
     /// ```text
-    /// [MAGIC: 4 bytes] [VERSION: 4 bytes] [BINCODE PAYLOAD]
+    /// [MAGIC: 4 bytes] [VERSION: 4 bytes] [POSTCARD PAYLOAD]
     /// ```
     ///
     /// # Performance
@@ -77,7 +77,7 @@ pub trait CacheEntity: Send + Sync + Serialize + for<'de> Deserialize<'de> + Clo
     ///
     /// - Magic must be b"CKIT"
     /// - Version must match current schema version
-    /// - Bincode deserialization must succeed
+    /// - Postcard deserialization must succeed
     ///
     /// # Errors
     ///
@@ -96,44 +96,6 @@ pub trait CacheEntity: Send + Sync + Serialize + for<'de> Deserialize<'de> + Clo
     fn validate(&self) -> Result<()> {
         Ok(())
     }
-}
-
-// ============================================================================
-// Generic implementations for common types
-// ============================================================================
-
-/// Generic implementation for `Vec<T>`
-impl<T: CacheEntity> CacheEntity for Vec<T> {
-    type Key = String; // Use a string for collection keys
-
-    fn cache_key(&self) -> Self::Key {
-        // Use first item's key, or generate a collection key
-        self.first()
-            .map(|item| item.cache_key().to_string())
-            .unwrap_or_else(|| "empty_collection".to_string())
-    }
-
-    fn cache_prefix() -> &'static str {
-        T::cache_prefix()
-    }
-}
-
-/// Generic implementation for `Option<T>`
-impl<T: CacheEntity> CacheEntity for Option<T> {
-    type Key = String;
-
-    fn cache_key(&self) -> Self::Key {
-        self.as_ref()
-            .map(|item| item.cache_key().to_string())
-            .unwrap_or_else(|| "none".to_string())
-    }
-
-    fn cache_prefix() -> &'static str {
-        "option"
-    }
-
-    // Option<T> uses the default Bincode serialization
-    // (inherits from CacheEntity trait default implementation)
 }
 
 #[cfg(test)]
@@ -182,35 +144,5 @@ mod tests {
 
         assert_eq!(entity.cache_key(), "entity_123");
         assert_eq!(TestEntity::cache_prefix(), "test");
-    }
-
-    #[test]
-    fn test_vec_cache_entity() {
-        let entities = vec![
-            TestEntity {
-                id: "1".to_string(),
-                value: "a".to_string(),
-            },
-            TestEntity {
-                id: "2".to_string(),
-                value: "b".to_string(),
-            },
-        ];
-
-        assert_eq!(entities.cache_key(), "1");
-        assert_eq!(Vec::<TestEntity>::cache_prefix(), "test");
-    }
-
-    #[test]
-    fn test_option_cache_entity() {
-        let entity: Option<TestEntity> = Some(TestEntity {
-            id: "opt_1".to_string(),
-            value: "data".to_string(),
-        });
-
-        assert_eq!(entity.cache_key(), "opt_1");
-
-        let none_entity: Option<TestEntity> = None;
-        assert_eq!(none_entity.cache_key(), "none");
     }
 }

@@ -9,7 +9,7 @@
 //! Every cache entry follows this format:
 //! ```text
 //! ┌─────────────────┬─────────────────┬──────────────────────────┐
-//! │  MAGIC (4 bytes)│ VERSION (4 bytes)│  POSTCARD PAYLOAD (N bytes)│
+//! │  MAGIC (4 bytes)│VERSION (4 bytes)│POSTCARD PAYLOAD (N bytes)│
 //! └─────────────────┴─────────────────┴──────────────────────────┘
 //!   "CKIT"              u32 (LE)           postcard::to_allocvec(T)
 //! ```

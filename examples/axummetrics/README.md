@@ -5,6 +5,7 @@ Complete example demonstrating integrating cache-kit with Axum web framework and
 ## What's Included
 
 - **main.rs** — REST API server with cache-kit integration
+
   - GET `/api/user/:id` — Fetch user with automatic caching
   - GET `/health` — Health check endpoint
   - GET `/metrics` — Prometheus metrics endpoint
@@ -21,31 +22,30 @@ Complete example demonstrating integrating cache-kit with Axum web framework and
 make run
 ```
 
-Or manually:
-```bash
-cargo run --bin axummetrics
-```
-
 Server starts on `http://127.0.0.1:3000`.
 
 ## Testing the API
 
 ### Fetch a user (will be cached)
+
 ```bash
 curl http://127.0.0.1:3000/api/user/user_001
 ```
 
 ### Health check
+
 ```bash
 curl http://127.0.0.1:3000/health
 ```
 
 ### View metrics
+
 ```bash
 curl http://127.0.0.1:3000/metrics
 ```
 
 The `/metrics` endpoint returns Prometheus-compatible metrics:
+
 - `cache_hits_total` — Total cache hits
 - `cache_misses_total` — Total cache misses
 - `cache_errors_total` — Total cache errors
@@ -56,6 +56,7 @@ The `/metrics` endpoint returns Prometheus-compatible metrics:
 ## Available Users
 
 The mock repository has these test users:
+
 - `user_001` — Alice Johnson
 - `user_002` — Bob Smith
 - `user_003` — Charlie Brown
@@ -63,12 +64,13 @@ The mock repository has these test users:
 ## Integration with Prometheus
 
 Add to `prometheus.yml`:
+
 ```yaml
 scrape_configs:
-  - job_name: 'cache-kit-example'
+  - job_name: "cache-kit-example"
     static_configs:
-      - targets: ['127.0.0.1:3000']
-    metrics_path: '/metrics'
+      - targets: ["127.0.0.1:3000"]
+    metrics_path: "/metrics"
     scrape_interval: 15s
 ```
 
@@ -81,4 +83,4 @@ scrape_configs:
 
 ## Related Documentation
 
-See [Monitoring Guide](../../docs/guides/monitoring.md) for detailed setup instructions and Prometheus configuration.
+See [Monitoring Guide](https://cachekit.org/guides/monitoring.md) for detailed setup instructions and Prometheus configuration.

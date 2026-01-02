@@ -9,7 +9,99 @@ use crate::observability::{CacheMetrics, NoOpMetrics, TtlPolicy};
 use crate::repository::DataRepository;
 use crate::strategy::CacheStrategy;
 use std::str::FromStr;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+/// Configuration for per-operation overrides.
+///
+/// This allows you to override TTL and retry behavior for individual cache operations,
+/// without affecting the global settings on the `CacheExpander`.
+///
+/// # Setup-Time vs Per-Operation Configuration
+///
+/// - **Setup-time configuration**: Set once on `CacheExpander` using `with_metrics()` or
+///   `with_ttl_policy()`. These affect all operations.
+/// - **Per-operation configuration**: Use `OperationConfig` to override settings for a
+///   specific cache operation.
+///
+/// # Example
+///
+/// ```ignore
+/// use cache_kit::OperationConfig;
+/// use std::time::Duration;
+///
+/// // Override TTL and add retry for this specific operation
+/// let config = OperationConfig::default()
+///     .with_ttl(Duration::from_secs(300))
+///     .with_retry(3);
+///
+/// expander.with_config(&mut feeder, &repo, strategy, config).await?;
+/// ```
+#[derive(Clone, Debug, Default)]
+pub struct OperationConfig {
+    /// Override the default TTL for this operation only.
+    ///
+    /// # Precedence and Conflict Resolution
+    ///
+    /// When both `ttl_override` and the expander's `ttl_policy` could apply:
+    /// - **If `Some(duration)`**: Use this override (takes precedence)
+    /// - **If `None`**: Fall back to the expander's `ttl_policy`
+    ///
+    /// This allows per-operation exceptions without changing global settings.
+    ///
+    /// # Example: Flash Sale Override
+    ///
+    /// ```ignore
+    /// use cache_kit::{CacheExpander, OperationConfig, observability::TtlPolicy};
+    /// use std::time::Duration;
+    ///
+    /// // Setup: Default 1-hour cache for all entities
+    /// let expander = CacheExpander::new(backend)
+    ///     .with_ttl_policy(TtlPolicy::Fixed(Duration::from_secs(3600)));
+    ///
+    /// // Normal operation: Uses 1-hour TTL from global policy
+    /// expander.with(&mut feeder, &repo, CacheStrategy::Refresh).await?;
+    ///
+    /// // Flash sale: Override to 60 seconds (one-time exception)
+    /// let flash_config = OperationConfig::default()
+    ///     .with_ttl(Duration::from_secs(60));  // Overrides global 1h policy
+    /// expander.with_config(&mut feeder, &repo, CacheStrategy::Refresh, flash_config).await?;
+    /// ```
+    pub ttl_override: Option<Duration>,
+
+    /// Number of retry attempts for this operation (0 = no retry).
+    ///
+    /// If the operation fails, it will be retried up to this many times with
+    /// exponential backoff.
+    pub retry_count: u32,
+}
+
+impl OperationConfig {
+    /// Override TTL for this operation.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let config = OperationConfig::default()
+    ///     .with_ttl(Duration::from_secs(300));
+    /// ```
+    pub fn with_ttl(mut self, ttl: Duration) -> Self {
+        self.ttl_override = Some(ttl);
+        self
+    }
+
+    /// Set retry count for this operation.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let config = OperationConfig::default()
+    ///     .with_retry(3);  // Retry up to 3 times on failure
+    /// ```
+    pub fn with_retry(mut self, count: u32) -> Self {
+        self.retry_count = count;
+        self
+    }
+}
 
 /// Core cache expander - handles cache lookup and fallback logic.
 ///
@@ -50,25 +142,6 @@ impl<B: CacheBackend> CacheExpander<B> {
     pub fn with_ttl_policy(mut self, policy: TtlPolicy) -> Self {
         self.ttl_policy = policy;
         self
-    }
-
-    /// Create a builder for complex cache operations.
-    ///
-    /// The builder pattern provides a fluent interface for configuring
-    /// cache operations with custom strategies, TTL overrides, and retry logic.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let result = expander
-    ///     .builder()
-    ///     .with_strategy(CacheStrategy::Refresh)
-    ///     .with_ttl(Duration::from_secs(300))
-    ///     .with_retry(3)
-    ///     .execute(&mut feeder, &repo)?;
-    /// ```
-    pub fn builder(&mut self) -> crate::builder::CacheOperationBuilder<'_, B> {
-        crate::builder::CacheOperationBuilder::new(self)
     }
 
     /// Generic cache operation with strategy.
@@ -118,6 +191,114 @@ impl<B: CacheBackend> CacheExpander<B> {
         R: DataRepository<T>,
         T::Key: FromStr,
     {
+        // Delegate to with_config with default configuration
+        self.with_config::<T, F, R>(feeder, repository, strategy, OperationConfig::default())
+            .await
+    }
+
+    /// Execute cache operation with custom configuration.
+    ///
+    /// This method allows per-operation overrides for TTL and retry logic.
+    ///
+    /// # Arguments
+    ///
+    /// - `feeder`: Entity feeder (implements `CacheFeed<T>`)
+    /// - `repository`: Data repository (implements `DataRepository<T>`)
+    /// - `strategy`: Cache strategy (Fresh, Refresh, Invalidate, Bypass)
+    /// - `config`: Operation configuration (TTL override, retry count)
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use cache_kit::{OperationConfig, CacheStrategy};
+    /// use std::time::Duration;
+    ///
+    /// let config = OperationConfig::default()
+    ///     .with_ttl(Duration::from_secs(300))
+    ///     .with_retry(3);
+    ///
+    /// expander.with_config(
+    ///     &mut feeder,
+    ///     &repo,
+    ///     CacheStrategy::Refresh,
+    ///     config
+    /// ).await?;
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` in these cases:
+    /// - `Error::ValidationError`: Feeder or entity validation fails
+    /// - `Error::DeserializationError`: Cached data is corrupted or has wrong format
+    /// - `Error::InvalidCacheEntry`: Cache magic header mismatch or invalid envelope
+    /// - `Error::VersionMismatch`: Schema version mismatch between code and cached data
+    /// - `Error::BackendError`: Cache backend is unavailable or network error
+    /// - `Error::RepositoryError`: Database access fails
+    /// - `Error::Timeout`: Operation exceeds timeout threshold
+    /// - `Error::SerializationError`: Entity serialization for caching fails
+    ///
+    /// Failed operations are retried up to `config.retry_count` times with exponential backoff.
+    pub async fn with_config<T, F, R>(
+        &self,
+        feeder: &mut F,
+        repository: &R,
+        strategy: CacheStrategy,
+        config: OperationConfig,
+    ) -> Result<()>
+    where
+        T: CacheEntity,
+        F: CacheFeed<T>,
+        R: DataRepository<T>,
+        T::Key: FromStr,
+    {
+        // Retry logic
+        let mut attempts = 0;
+        let max_attempts = config.retry_count + 1; // +1 for initial attempt
+
+        loop {
+            attempts += 1;
+
+            let result = self
+                .execute_operation::<T, F, R>(feeder, repository, strategy.clone(), &config)
+                .await;
+
+            match result {
+                Ok(()) => return Ok(()),
+                Err(e) => {
+                    if attempts >= max_attempts {
+                        return Err(e);
+                    }
+
+                    debug!(
+                        "Cache operation failed (attempt {}/{}), retrying...",
+                        attempts, max_attempts
+                    );
+
+                    // Exponential backoff
+                    if config.retry_count > 0 {
+                        let delay =
+                            tokio::time::Duration::from_millis(100 * 2_u64.pow(attempts - 1));
+                        tokio::time::sleep(delay).await;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Internal method to execute a single cache operation (without retry).
+    async fn execute_operation<T, F, R>(
+        &self,
+        feeder: &mut F,
+        repository: &R,
+        strategy: CacheStrategy,
+        config: &OperationConfig,
+    ) -> Result<()>
+    where
+        T: CacheEntity,
+        F: CacheFeed<T>,
+        R: DataRepository<T>,
+        T::Key: FromStr,
+    {
         let timer = Instant::now();
 
         // Step 1: Validate feeder
@@ -134,13 +315,22 @@ impl<B: CacheBackend> CacheExpander<B> {
 
         // Step 3: Execute strategy
         let result = match strategy {
-            CacheStrategy::Fresh => self.strategy_fresh::<T, R>(&cache_key, repository).await,
-            CacheStrategy::Refresh => self.strategy_refresh::<T, R>(&cache_key, repository).await,
-            CacheStrategy::Invalidate => {
-                self.strategy_invalidate::<T, R>(&cache_key, repository)
+            CacheStrategy::Fresh => {
+                self.strategy_fresh::<T, R>(&cache_key, repository, config)
                     .await
             }
-            CacheStrategy::Bypass => self.strategy_bypass::<T, R>(&cache_key, repository).await,
+            CacheStrategy::Refresh => {
+                self.strategy_refresh::<T, R>(&cache_key, repository, config)
+                    .await
+            }
+            CacheStrategy::Invalidate => {
+                self.strategy_invalidate::<T, R>(&cache_key, repository, config)
+                    .await
+            }
+            CacheStrategy::Bypass => {
+                self.strategy_bypass::<T, R>(&cache_key, repository, config)
+                    .await
+            }
         };
 
         // Step 4: Handle result
@@ -173,6 +363,7 @@ impl<B: CacheBackend> CacheExpander<B> {
         &self,
         cache_key: &str,
         _repository: &R,
+        _config: &OperationConfig,
     ) -> Result<Option<T>> {
         debug!("Executing Fresh strategy for {}", cache_key);
 
@@ -193,6 +384,7 @@ impl<B: CacheBackend> CacheExpander<B> {
         &self,
         cache_key: &str,
         repository: &R,
+        config: &OperationConfig,
     ) -> Result<Option<T>>
     where
         T::Key: FromStr,
@@ -212,7 +404,10 @@ impl<B: CacheBackend> CacheExpander<B> {
         match repository.fetch_by_id(&id).await? {
             Some(entity) => {
                 // Store in cache for future use
-                let ttl = self.ttl_policy.get_ttl(T::cache_prefix());
+                // Use config override if provided, otherwise use default TTL policy
+                let ttl = config
+                    .ttl_override
+                    .or_else(|| self.ttl_policy.get_ttl(T::cache_prefix()));
                 let bytes = entity.serialize_for_cache()?;
                 let _ = self.backend.set(cache_key, bytes, ttl).await;
                 Ok(Some(entity))
@@ -226,6 +421,7 @@ impl<B: CacheBackend> CacheExpander<B> {
         &self,
         cache_key: &str,
         repository: &R,
+        config: &OperationConfig,
     ) -> Result<Option<T>>
     where
         T::Key: FromStr,
@@ -241,7 +437,10 @@ impl<B: CacheBackend> CacheExpander<B> {
         match repository.fetch_by_id(&id).await? {
             Some(entity) => {
                 // Re-populate cache
-                let ttl = self.ttl_policy.get_ttl(T::cache_prefix());
+                // Use config override if provided, otherwise use default TTL policy
+                let ttl = config
+                    .ttl_override
+                    .or_else(|| self.ttl_policy.get_ttl(T::cache_prefix()));
                 let bytes = entity.serialize_for_cache()?;
                 let _ = self.backend.set(cache_key, bytes, ttl).await;
                 Ok(Some(entity))
@@ -255,6 +454,7 @@ impl<B: CacheBackend> CacheExpander<B> {
         &self,
         cache_key: &str,
         repository: &R,
+        config: &OperationConfig,
     ) -> Result<Option<T>>
     where
         T::Key: FromStr,
@@ -267,7 +467,10 @@ impl<B: CacheBackend> CacheExpander<B> {
         match repository.fetch_by_id(&id).await? {
             Some(entity) => {
                 // Still populate cache for others
-                let ttl = self.ttl_policy.get_ttl(T::cache_prefix());
+                // Use config override if provided, otherwise use default TTL policy
+                let ttl = config
+                    .ttl_override
+                    .or_else(|| self.ttl_policy.get_ttl(T::cache_prefix()));
                 let bytes = entity.serialize_for_cache()?;
                 let _ = self.backend.set(cache_key, bytes, ttl).await;
                 Ok(Some(entity))
@@ -664,5 +867,42 @@ mod tests {
 
         // Verify we can access the backend
         assert_eq!(backend.len().await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_expander_with_config() {
+        let backend = InMemoryBackend::new();
+        let expander = CacheExpander::new(backend.clone())
+            .with_ttl_policy(TtlPolicy::Fixed(Duration::from_secs(60)));
+
+        let mut repo = InMemoryRepository::new();
+        repo.insert(
+            "1".to_string(),
+            TestEntity {
+                id: "1".to_string(),
+                value: "test_value".to_string(),
+            },
+        );
+
+        let mut feeder = GenericFeeder::new("1".to_string());
+
+        // Test with_config() with TTL override and retry
+        let config = OperationConfig::default()
+            .with_ttl(Duration::from_secs(300))
+            .with_retry(2);
+
+        expander
+            .with_config::<TestEntity, _, _>(&mut feeder, &repo, CacheStrategy::Refresh, config)
+            .await
+            .expect("Failed to execute with config");
+
+        assert!(feeder.data.is_some());
+        assert_eq!(feeder.data.expect("Data not found").value, "test_value");
+
+        // Verify that the original TTL policy wasn't mutated
+        match &expander.ttl_policy {
+            TtlPolicy::Fixed(duration) => assert_eq!(*duration, Duration::from_secs(60)),
+            _ => panic!("Expected Fixed TTL policy"),
+        }
     }
 }

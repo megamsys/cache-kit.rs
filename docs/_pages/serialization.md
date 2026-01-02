@@ -3,10 +3,9 @@ layout: single
 title: Serialization Support
 description: "Understanding serialization formats and limitations in cache-kit"
 permalink: /serialization/
+nav_order: 7
+date: 2025-12-26
 ---
-
-
-
 
 ---
 
@@ -14,15 +13,16 @@ permalink: /serialization/
 
 **Decimal types (`rust_decimal::Decimal`, `bigdecimal::BigDecimal`) are NOT supported by Postcard serialization.**
 
-If your entities use Decimal fields (common in financial apps), you MUST convert to `String` or `i64` before caching. See [Decimal Workarounds](#decimal-types-workaround) below.
+If your entities use Decimal fields (common in financial apps), you MUST convert to `String` or `i64` before caching. See [Decimal Types Not Supported](#decimal-types-not-supported) below.
 
 ---
 
 ## Serialization as a First-Class Concern
 
-cache-kit treats serialization as a **pluggable, first-class concern**.
+cache-kit treats serialization as a **first-class architectural concern**.
 
 Serialization determines:
+
 - **Storage format** in the cache backend
 - **Performance** characteristics (speed, size)
 - **Type support** (which Rust types can be cached)
@@ -36,19 +36,19 @@ Serialization determines:
 
 **Postcard** is the primary recommended serialization format for cache-kit.
 
-| Feature | Postcard |
-|---------|----------|
-| **Performance** | ⚡ Very fast (10-15x faster than JSON) |
-| **Size** | 📦 Compact (40-50% smaller than JSON) |
-| **Type safety** | ✅ Strong Rust type preservation |
-| **Determinism** | ✅ Same input → same output |
-| **Language support** | ❌ Rust-only |
-| **Decimal support** | ❌ No (see limitations below) |
+| Feature              | Postcard                               |
+| -------------------- | -------------------------------------- |
+| **Performance**      | ⚡ Very fast (10-15x faster than JSON) |
+| **Size**             | 📦 Compact (40-50% smaller than JSON)  |
+| **Type safety**      | ✅ Strong Rust type preservation       |
+| **Determinism**      | ✅ Same input → same output            |
+| **Language support** | ❌ Rust-only                           |
+| **Decimal support**  | ❌ No (see limitations below)          |
 
 #### Why Postcard?
 
 - **Optimized for Rust** — Zero-copy deserialization where possible
-- **No schema evolution** — Simple, explicit versioning
+- **Explicit versioning** — Simple versioning with automatic cache invalidation
 - **Minimal overhead** — Field order matters, no field names stored
 - **Fast** — Designed for embedded and performance-critical systems
 
@@ -58,7 +58,7 @@ Postcard is included by default:
 
 ```toml
 [dependencies]
-cache-kit = "0.9"
+cache-kit = { version = "0.9" }
 ```
 
 #### Usage
@@ -91,14 +91,14 @@ impl CacheEntity for User {
 
 **MessagePack** will be available as an alternative serialization format.
 
-| Feature | MessagePack (Planned) |
-|---------|----------------------|
-| **Performance** | ⚡ Fast (4-6x faster than JSON) |
-| **Size** | 📦 Compact (50% smaller than JSON) |
-| **Type safety** | ⚠️ Partial |
-| **Determinism** | ⚠️ Partial (field order varies) |
-| **Language support** | ✅ Many languages |
-| **Decimal support** | ⚠️ Depends on implementation |
+| Feature              | MessagePack (Planned)              |
+| -------------------- | ---------------------------------- |
+| **Performance**      | ⚡ Fast (4-6x faster than JSON)    |
+| **Size**             | 📦 Compact (50% smaller than JSON) |
+| **Type safety**      | ⚠️ Partial                         |
+| **Determinism**      | ⚠️ Partial (field order varies)    |
+| **Language support** | ✅ Many languages                  |
+| **Decimal support**  | ⚠️ Depends on implementation       |
 
 **Community contributions welcome!** Help us add MessagePack support.
 
@@ -135,6 +135,7 @@ assert_eq!(bytes1, bytes2);  // ✅ Always true
 ```
 
 This enables:
+
 - **Reliable cache keys** based on content
 - **Deduplication** in distributed caches
 - **Reproducible testing**
@@ -148,6 +149,7 @@ This enables:
 Postcard (and many binary formats) do **not support** arbitrary-precision decimal types out of the box.
 
 Affected types:
+
 - `rust_decimal::Decimal`
 - `bigdecimal::BigDecimal`
 - Database `NUMERIC` / `DECIMAL` columns
@@ -174,74 +176,27 @@ struct Product {
 
 impl Product {
     pub fn price_dollars(&self) -> f64 {
-        self.price_cents as f64 / 0.9.0
+        self.price_cents as f64 / 100.0
     }
 
     pub fn set_price_dollars(&mut self, dollars: f64) {
-        self.price_cents = (dollars * 0.9.0).round() as i64;
+        self.price_cents = (dollars * 100.0).round() as i64;
     }
 }
 ```
 
 **Pros:**
+
 - ✅ No precision loss for monetary values
 - ✅ Fast serialization
 - ✅ Compact storage
 
 **Cons:**
+
 - ❌ Manual conversion needed
 - ❌ Limited to representable range of `i64`
 
-##### Strategy 2: Cache-Specific DTOs
-
-Create separate types for caching:
-
-```rust
-// Database model (with Decimal)
-#[derive(sqlx::FromRow)]
-struct ProductRow {
-    id: String,
-    name: String,
-    price: rust_decimal::Decimal,  // Database DECIMAL type
-}
-
-// Cache model (with supported types)
-#[derive(Clone, Serialize, Deserialize)]
-struct CachedProduct {
-    id: String,
-    name: String,
-    price_cents: i64,  // Converted from Decimal
-}
-
-impl CacheEntity for CachedProduct {
-    type Key = String;
-    fn cache_key(&self) -> Self::Key { self.id.clone() }
-    fn cache_prefix() -> &'static str { "product" }
-}
-
-impl From<ProductRow> for CachedProduct {
-    fn from(row: ProductRow) -> Self {
-        CachedProduct {
-            id: row.id,
-            name: row.name,
-            price_cents: (row.price * rust_decimal::Decimal::from(100))
-                .to_i64()
-                .unwrap_or(0),
-        }
-    }
-}
-```
-
-**Pros:**
-- ✅ Clean separation of concerns
-- ✅ Database can use appropriate types
-- ✅ Cache uses efficient types
-
-**Cons:**
-- ❌ Requires type conversion
-- ❌ More boilerplate
-
-##### Strategy 3: String Representation
+##### Strategy 2: String Representation
 
 Store decimals as strings (not recommended for performance):
 
@@ -255,19 +210,15 @@ struct Product {
 ```
 
 **Pros:**
+
 - ✅ No precision loss
 - ✅ Preserves exact decimal representation
 
 **Cons:**
+
 - ❌ Slower serialization
 - ❌ Larger storage footprint
 - ❌ Manual parsing required
-
-##### Strategy 4: Use MessagePack (Future)
-
-When MessagePack support is added, you may have more flexibility for decimal types.
-
-**Community contributions welcome!**
 
 ---
 
@@ -275,80 +226,19 @@ When MessagePack support is added, you may have more flexibility for decimal typ
 
 ### DO
 
-✅ Use primitive types where possible (`i64`, `f64`, `String`)
-✅ Convert decimals to integers (cents) for monetary values
-✅ Create cache-specific DTOs if needed
-✅ Document conversion logic clearly
-✅ Test roundtrip serialization
+- ✅ Use primitive types where possible (`i64`, `f64`, `String`)
+- ✅ Convert decimals to integers (cents) for monetary values
+- ✅ Create cache-specific DTOs if needed
+- ✅ Document conversion logic clearly
+- ✅ Test roundtrip serialization
 
 ### DON'T
 
-❌ Assume all Rust types are serializable
-❌ Mix database types with cache types without conversion
-❌ Ignore serialization errors
-❌ Use `unwrap()` on deserialization
-❌ Store sensitive data without encryption
-
----
-
-## Custom Serialization
-
-If you need custom serialization for specific types, implement `serde` traits:
-
-```rust
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use rust_decimal::Decimal;
-
-#[derive(Clone)]
-struct CustomProduct {
-    id: String,
-    name: String,
-    price: Decimal,
-}
-
-impl Serialize for CustomProduct {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        use serde::ser::SerializeStruct;
-
-        let mut state = serializer.serialize_struct("CustomProduct", 3)?;
-        state.serialize_field("id", &self.id)?;
-        state.serialize_field("name", &self.name)?;
-
-        // Convert Decimal to i64 cents
-        let price_cents = (self.price * Decimal::from(100))
-            .to_i64()
-            .ok_or_else(|| serde::ser::Error::custom("Price out of range"))?;
-        state.serialize_field("price_cents", &price_cents)?;
-
-        state.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for CustomProduct {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct Helper {
-            id: String,
-            name: String,
-            price_cents: i64,
-        }
-
-        let helper = Helper::deserialize(deserializer)?;
-
-        Ok(CustomProduct {
-            id: helper.id,
-            name: helper.name,
-            price: Decimal::from(helper.price_cents) / Decimal::from(100),
-        })
-    }
-}
-```
+- ❌ Assume all Rust types are serializable
+- ❌ Mix database types with cache types without conversion
+- ❌ Ignore serialization errors
+- ❌ Use `unwrap()` on deserialization
+- ❌ Store sensitive data without encryption
 
 ---
 
@@ -397,78 +287,14 @@ struct User {
 }
 ```
 
-**Action required:**
-1. Bump schema version in cache-kit configuration
-2. Deploy new code
-3. Old cache entries will be invalidated automatically
-4. New entries cached with updated schema
+**What happens:**
 
----
+1. Deploy your code with the new entity structure
+2. Old cache entries will fail to deserialize (treated as cache misses)
+3. Cache will automatically refetch from database and store with new structure
+4. No manual intervention needed — cache naturally repopulates
 
-## Performance Characteristics
-
-### Postcard Performance
-
-Based on typical workloads:
-
-| Operation | Time | Throughput |
-|-----------|------|------------|
-| Serialize (1KB entity) | 50-100 ns | 10-20M ops/sec |
-| Deserialize (1KB entity) | 60-120 ns | 8-16M ops/sec |
-
-**Comparison with JSON:**
-
-| Metric | JSON | Postcard | Improvement |
-|--------|------|----------|-------------|
-| Serialize | 1.2 µs | 80 ns | **15x faster** |
-| Deserialize | 1.5 µs | 100 ns | **15x faster** |
-| Size (1KB entity) | 158 bytes | 95 bytes | **40% smaller** |
-
----
-
-## Example: Complete Serialization Flow
-
-```rust
-use cache_kit::{CacheEntity, CacheExpander};
-use cache_kit::backend::InMemoryBackend;
-use serde::{Deserialize, Serialize};
-
-// 1. Define entity (automatically uses Postcard)
-#[derive(Clone, Serialize, Deserialize, Debug)]
-struct User {
-    id: String,
-    name: String,
-    age: u32,
-}
-
-impl CacheEntity for User {
-    type Key = String;
-    fn cache_key(&self) -> Self::Key { self.id.clone() }
-    fn cache_prefix() -> &'static str { "user" }
-}
-
-fn main() -> cache_kit::Result<()> {
-    let backend = InMemoryBackend::new();
-    let mut expander = CacheExpander::new(backend);
-
-    let user = User {
-        id: "user_001".to_string(),
-        name: "Alice".to_string(),
-        age: 30,
-    };
-
-    // Serialization happens automatically
-    // [MAGIC][VERSION][Postcard bytes]
-    expander.set(&user, None)?;
-
-    // Deserialization happens automatically
-    let cached: Option<User> = expander.get(&"user_001".to_string())?;
-
-    println!("Cached user: {:?}", cached);
-
-    Ok(())
-}
-```
+**Note:** The schema version is managed internally by cache-kit. When deserialization fails due to structure changes, entries are automatically treated as cache misses and refetched.
 
 ---
 
@@ -478,7 +304,7 @@ fn main() -> cache_kit::Result<()> {
 
 **Cause:** Entity contains unsupported types (e.g., `Decimal`)
 
-**Solution:** Convert to supported primitives or use cache-specific DTOs
+**Solution:** Convert to supported primitives
 
 ### Error: "Version mismatch"
 
@@ -496,7 +322,7 @@ fn main() -> cache_kit::Result<()> {
 
 ## Next Steps
 
-- Learn about [Cache backend options](backends)
-- Review [Design principles](design-principles)
+- Learn about [Cache backend options](/cache-kit.rs/backends)
+- Review [Core Concepts](/cache-kit.rs/concepts) — Design philosophy and principles
 - Explore the [Actix + SQLx reference implementation](https://github.com/megamsys/cache-kit.rs/tree/main/examples/actixsqlx)
 - **Contribute MessagePack support!** See [CONTRIBUTING.md](https://github.com/megamsys/cache-kit.rs/blob/main/CONTRIBUTING.md)

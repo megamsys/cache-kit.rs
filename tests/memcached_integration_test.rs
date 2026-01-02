@@ -7,14 +7,12 @@
 //! ```bash
 //! # Option 1: Use Makefile (recommended)
 //! make up                  # Start Redis and Memcached services
-//! make memcached-test      # Run Memcached integration tests
+//! make test FEATURES="--features memcached"     # Run Memcached integration tests
 //!
 //! # Option 2: Manual setup
-//! docker run -d -p 11211:11211 memcached:1.6-alpine
+//! make up
 //! cargo test --features memcached --test memcached_integration_test -- --test-threads=1
 //!
-//! # Option 3: Custom Memcached URL
-//! TEST_MEMCACHED_URL=custom-host:11211 make memcached-test
 //! ```
 //!
 //! **Important:** Tests must run sequentially (`--test-threads=1`) because they share
@@ -711,7 +709,7 @@ async fn test_e2e_cache_flow_with_memcached() {
     println!("✓ Memcached cache hit successful");
 
     // Cleanup
-    backend.clone().delete(cache_key).await.ok();
+    backend.delete(cache_key).await.ok();
 }
 
 // =============================================================================
@@ -768,16 +766,11 @@ async fn test_e2e_multiple_entities_with_memcached() {
     let product_cache_key = "memcached_test_product:e2e_p1";
 
     assert!(
-        backend.clone().get(user_cache_key).await.unwrap().is_some(),
+        backend.get(user_cache_key).await.unwrap().is_some(),
         "User should be cached in Memcached"
     );
     assert!(
-        backend
-            .clone()
-            .get(product_cache_key)
-            .await
-            .unwrap()
-            .is_some(),
+        backend.get(product_cache_key).await.unwrap().is_some(),
         "Product should be cached in Memcached"
     );
     println!("✓ Multiple entity types cached in Memcached");
@@ -792,8 +785,8 @@ async fn test_e2e_multiple_entities_with_memcached() {
     println!("✓ No cross-contamination between entity types");
 
     // Cleanup
-    backend.clone().delete(user_cache_key).await.ok();
-    backend.clone().delete(product_cache_key).await.ok();
+    backend.delete(user_cache_key).await.ok();
+    backend.delete(product_cache_key).await.ok();
 }
 
 // =============================================================================
@@ -1011,10 +1004,10 @@ async fn test_e2e_concurrent_operations_with_memcached() {
     let mut cached_count = 0;
     for i in 0..10 {
         let cache_key = format!("memcached_test_user:e2e_concurrent_{}", i);
-        if backend.clone().exists(&cache_key).await.unwrap() {
+        if backend.exists(&cache_key).await.unwrap() {
             cached_count += 1;
             // Cleanup
-            backend.clone().delete(&cache_key).await.ok();
+            backend.delete(&cache_key).await.ok();
         }
     }
 

@@ -38,7 +38,7 @@ test: _run-tests  ## Run all tests (use FEATURES="--features redis" to filter)
 	@echo ""
 	@echo "✓ All tests passed"
 
-release: _check-rust build test _audit _publish  ## Build, test, audit, and publish to crates.io
+release: _check-rust build_release test _audit _publish  ## Build, test, audit, and publish to crates.io
 	@echo ""
 	@echo "========================================="
 	@echo "✓ RELEASE COMPLETE"

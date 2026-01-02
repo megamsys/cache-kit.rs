@@ -3,10 +3,9 @@ layout: single
 title: Cache Backend Support
 description: "Understanding cache backends and choosing the right one for your use case"
 permalink: /backends/
+nav_order: 10
+date: 2025-12-29
 ---
-
-
-
 
 ---
 
@@ -14,11 +13,11 @@ permalink: /backends/
 
 cache-kit supports multiple cache backends with explicit tiering based on production readiness and use case.
 
-| Backend | Tier | Use Case | Persistence | Distribution |
-|---------|------|----------|-------------|--------------|
-| **Redis** | Tier-0 (Production) | High-performance distributed cache | Optional | ✅ Yes |
-| **Memcached** | Tier-0 (Production) | Ultra-fast memory cache | ❌ No | ✅ Yes |
-| **InMemory** | Tier-1 (Dev/Test) | Local development, testing | ❌ No | ❌ No |
+| Backend       | Tier                | Use Case                           | Persistence | Distribution |
+| ------------- | ------------------- | ---------------------------------- | ----------- | ------------ |
+| **Redis**     | Tier-0 (Production) | High-performance distributed cache | Optional    | ✅ Yes       |
+| **Memcached** | Tier-0 (Production) | Ultra-fast memory cache            | ❌ No       | ✅ Yes       |
+| **InMemory**  | Tier-1 (Dev/Test)   | Local development, testing         | ❌ No       | ❌ No        |
 
 ---
 
@@ -60,25 +59,26 @@ let config = RedisConfig {
     database: 0,
 };
 
-let backend = RedisBackend::new(config)?;
+let backend = RedisBackend::new(config).await?;
 let expander = CacheExpander::new(backend);
 ```
 
 #### Redis Configuration Options
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `host` | `String` | `"localhost"` | Redis server hostname or IP |
-| `port` | `u16` | `6379` | Redis server port |
-| `username` | `Option<String>` | `None` | Redis username (Redis 6+) |
-| `password` | `Option<String>` | `None` | Redis password |
-| `database` | `u32` | `0` | Redis database number (0-15) |
-| `pool_size` | `u32` | `16` | Connection pool size |
-| `connection_timeout` | `Duration` | `5s` | Connection timeout |
+| Field                | Type             | Default       | Description                  |
+| -------------------- | ---------------- | ------------- | ---------------------------- |
+| `host`               | `String`         | `"localhost"` | Redis server hostname or IP  |
+| `port`               | `u16`            | `6379`        | Redis server port            |
+| `username`           | `Option<String>` | `None`        | Redis username (Redis 6+)    |
+| `password`           | `Option<String>` | `None`        | Redis password               |
+| `database`           | `u32`            | `0`           | Redis database number (0-15) |
+| `pool_size`          | `u32`            | `16`          | Connection pool size         |
+| `connection_timeout` | `Duration`       | `5s`          | Connection timeout           |
 
 #### Configuration Examples
 
 ```rust
+use cache_kit::backend::RedisConfig;
 use std::time::Duration;
 
 // Basic configuration
@@ -107,44 +107,10 @@ let config = RedisConfig {
 };
 ```
 
-#### Managed Redis Services
-
-cache-kit works with Redis-compatible managed services:
-
-- **AWS ElastiCache for Redis**
-  ```rust
-  let config = RedisConfig {
-      host: "my-cluster.cache.amazonaws.com".to_string(),
-      port: 6379,
-      pool_size: 20,
-      ..Default::default()
-  };
-  ```
-
-- **DigitalOcean Managed Redis**
-  ```rust
-  let config = RedisConfig {
-      host: "my-redis-cluster".to_string(),
-      port: 25061,
-      pool_size: 15,
-      // Note: For TLS, you may need additional configuration
-      ..Default::default()
-  };
-  ```
-
-- **Redis Cloud**
-  ```rust
-  let config = RedisConfig {
-      host: "redis-12345.cloud.redislabs.com".to_string(),
-      port: 12345,
-      password: Some("your-password".to_string()),
-      ..Default::default()
-  };
-  ```
-
 #### Redis Best Practices
 
 ✅ **DO:**
+
 - Use connection pooling (`pool_size` >= expected concurrent requests)
 - Enable persistence for production (AOF or RDB)
 - Set appropriate `maxmemory` and eviction policies
@@ -152,6 +118,7 @@ cache-kit works with Redis-compatible managed services:
 - Use TLS for network traffic
 
 ❌ **DON'T:**
+
 - Use a single connection for high concurrency
 - Ignore Redis memory limits
 - Store unbounded data without TTLs
@@ -171,6 +138,7 @@ Memcached is an ultra-fast, distributed memory object caching system.
 - ✅ **Mature** — Battle-tested in production
 
 ⚠️ **Caveats:**
+
 - ❌ **No persistence** — Data lost on restart
 - ❌ **No wildcard deletes** — Cannot delete by pattern
 - ❌ **No pub/sub** — No event notifications
@@ -200,11 +168,11 @@ let expander = CacheExpander::new(backend);
 
 #### Memcached Configuration Options
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `servers` | `Vec<String>` | Required | List of Memcached server addresses |
-| `max_connections` | `usize` | `10` | Maximum connections per server |
-| `min_connections` | `usize` | `2` | Minimum idle connections per server |
+| Field             | Type          | Default  | Description                         |
+| ----------------- | ------------- | -------- | ----------------------------------- |
+| `servers`         | `Vec<String>` | Required | List of Memcached server addresses  |
+| `max_connections` | `usize`       | `10`     | Maximum connections per server      |
+| `min_connections` | `usize`       | `2`      | Minimum idle connections per server |
 
 #### Multiple Memcached Servers
 
@@ -227,12 +195,14 @@ let backend = MemcachedBackend::new(config)?;
 #### Memcached Best Practices
 
 ✅ **DO:**
+
 - Use multiple servers for redundancy
 - Set appropriate TTLs (no persistence)
 - Monitor memory usage per server
 - Plan for cache misses (no persistence)
 
 ❌ **DON'T:**
+
 - Rely on wildcard delete operations (not supported)
 - Expect data to survive restarts
 - Use for long-term storage
@@ -254,6 +224,7 @@ The InMemory backend uses an in-process concurrent HashMap (DashMap).
 - ✅ **Thread-safe** — Lock-free concurrent access
 
 ⚠️ **Limitations:**
+
 - ❌ **Single instance** — Not distributed
 - ❌ **Memory-only** — Data lost on process restart
 - ❌ **Not scalable** — Limited to single machine
@@ -278,6 +249,7 @@ let expander = CacheExpander::new(backend);
 ```
 
 No configuration needed! Perfect for:
+
 - Unit tests
 - Integration tests
 - Local development
@@ -286,12 +258,14 @@ No configuration needed! Perfect for:
 #### InMemory Best Practices
 
 ✅ **DO:**
+
 - Use for all unit tests
 - Use for local development
 - Create fresh instances per test
 - Clear cache between tests if needed
 
 ❌ **DON'T:**
+
 - Use in production
 - Share instances across tests (isolation)
 - Expect data to survive process restarts
@@ -301,18 +275,18 @@ No configuration needed! Perfect for:
 
 ## Backend Comparison
 
-| Feature | Redis | Memcached | InMemory |
-|---------|-------|-----------|----------|
-| **Performance** | ⚡⚡ Very Fast | ⚡⚡⚡ Ultra Fast | ⚡⚡⚡ Ultra Fast |
-| **Persistence** | ✅ Optional | ❌ No | ❌ No |
-| **Distribution** | ✅ Clustering | ✅ Multi-server | ❌ Single process |
-| **Complexity** | Medium | Low | Very Low |
-| **Setup Time** | Minutes | Minutes | Seconds |
-| **Production Ready** | ✅ Yes | ✅ Yes | ❌ No |
-| **Data Structures** | ✅ Rich | ❌ Key-Value only | ❌ Key-Value only |
-| **Memory Management** | ✅ Eviction policies | ✅ LRU | ⚠️ Manual |
-| **Pub/Sub** | ✅ Yes | ❌ No | ❌ No |
-| **Transactions** | ✅ Yes | ❌ No | ❌ No |
+| Feature               | Redis                | Memcached         | InMemory          |
+| --------------------- | -------------------- | ----------------- | ----------------- |
+| **Performance**       | ⚡⚡ Very Fast       | ⚡⚡⚡ Ultra Fast | ⚡⚡⚡ Ultra Fast |
+| **Persistence**       | ✅ Optional          | ❌ No             | ❌ No             |
+| **Distribution**      | ✅ Clustering        | ✅ Multi-server   | ❌ Single process |
+| **Complexity**        | Medium               | Low               | Very Low          |
+| **Setup Time**        | Minutes              | Minutes           | Seconds           |
+| **Production Ready**  | ✅ Yes               | ✅ Yes            | ❌ No             |
+| **Data Structures**   | ✅ Rich              | ❌ Key-Value only | ❌ Key-Value only |
+| **Memory Management** | ✅ Eviction policies | ✅ LRU            | ⚠️ Manual         |
+| **Pub/Sub**           | ✅ Yes               | ❌ No             | ❌ No             |
+| **Transactions**      | ✅ Yes               | ❌ No             | ❌ No             |
 
 ---
 
@@ -333,15 +307,15 @@ Are you in production?
 
 ### Use Case Recommendations
 
-| Use Case | Recommended Backend | Rationale |
-|----------|-------------------|-----------|
-| **Production web app** | Redis | Persistence, rich features, managed services |
-| **High-traffic API** | Memcached | Ultra-fast, distributed |
-| **Session storage** | Redis | Persistence, expiry, pub/sub |
-| **Read-heavy workload** | Memcached | Optimized for reads |
-| **Local development** | InMemory | Zero setup, fast iterations |
-| **Unit tests** | InMemory | Deterministic, isolated |
-| **Multi-region deployment** | Redis | Replication, clustering |
+| Use Case                    | Recommended Backend | Rationale                                    |
+| --------------------------- | ------------------- | -------------------------------------------- |
+| **Production web app**      | Redis               | Persistence, rich features, managed services |
+| **High-traffic API**        | Memcached           | Ultra-fast, distributed                      |
+| **Session storage**         | Redis               | Persistence, expiry, pub/sub                 |
+| **Read-heavy workload**     | Memcached           | Optimized for reads                          |
+| **Local development**       | InMemory            | Zero setup, fast iterations                  |
+| **Unit tests**              | InMemory            | Deterministic, isolated                      |
+| **Multi-region deployment** | Redis               | Replication, clustering                      |
 
 ---
 
@@ -363,7 +337,7 @@ let backend = RedisBackend::new(RedisConfig {
         .and_then(|p| p.parse().ok())
         .unwrap_or(6379),
     ..Default::default()
-})?;
+}).await?;
 
 // Same expander interface
 let expander = CacheExpander::new(backend);
@@ -372,7 +346,7 @@ let expander = CacheExpander::new(backend);
 Or use environment variables:
 
 ```rust
-fn create_backend() -> Box<dyn cache_kit::backend::CacheBackend> {
+async fn create_backend() -> Result<Box<dyn cache_kit::backend::CacheBackend>, cache_kit::Error> {
     match std::env::var("CACHE_BACKEND").as_deref() {
         Ok("redis") => {
             let host = std::env::var("REDIS_HOST")
@@ -381,11 +355,12 @@ fn create_backend() -> Box<dyn cache_kit::backend::CacheBackend> {
                 .ok()
                 .and_then(|p| p.parse().ok())
                 .unwrap_or(6379);
-            Box::new(RedisBackend::new(RedisConfig {
+            let backend = RedisBackend::new(RedisConfig {
                 host,
                 port,
                 ..Default::default()
-            }).expect("Failed to connect to Redis"))
+            }).await?;
+            Ok(Box::new(backend))
         }
         Ok("memcached") => {
             let servers = std::env::var("MEMCACHED_SERVERS")
@@ -393,12 +368,13 @@ fn create_backend() -> Box<dyn cache_kit::backend::CacheBackend> {
                 .split(',')
                 .map(String::from)
                 .collect();
-            Box::new(MemcachedBackend::new(MemcachedConfig {
+            let backend = MemcachedBackend::new(MemcachedConfig {
                 servers,
                 ..Default::default()
-            }).expect("Failed to connect to Memcached"))
+            }).await?;
+            Ok(Box::new(backend))
         }
-        _ => Box::new(InMemoryBackend::new()),
+        _ => Ok(Box::new(InMemoryBackend::new())),
     }
 }
 ```
@@ -429,14 +405,18 @@ let config = RedisConfig {
 
 **Recommended formula:** `(CPU cores × 2) + 1`
 
-| System | Formula | Recommended Pool Size |
-|--------|---------|----------------------|
-| **4-core system** | (4 × 2) + 1 = 9 | 8-10 |
-| **8-core system** | (8 × 2) + 1 = 17 | **16** (default) |
-| **16-core system** | (16 × 2) + 1 = 33 | 32 |
-| **32-core system** | (32 × 2) + 1 = 65 | 64 |
+| System             | Formula           | Recommended Pool Size |
+| ------------------ | ----------------- | --------------------- |
+| **4-core system**  | (4 × 2) + 1 = 9   | 8-10                  |
+| **8-core system**  | (8 × 2) + 1 = 17  | **16** (default)      |
+| **16-core system** | (16 × 2) + 1 = 33 | 32                    |
+| **32-core system** | (32 × 2) + 1 = 65 | 64                    |
 
-**Research findings:** Pool size of 16 provides 49-53% latency reduction compared to pool size of 10 on 8-core systems, with 2.75x reduction in contention outliers (22% → 8%). See [Performance Guide](guides/performance) for detailed benchmarks.
+**Research findings:** On 8-core systems, increasing the connection pool from 10 to 16 connections provides:
+
+- **49-53% latency reduction**: Average response times are cut roughly in half (e.g., if average latency was 10ms, it drops to ~5ms)
+- **2.75x reduction in contention outliers**: The percentage of requests that experience unusually high latency due to connection pool contention drops from 22% to 8% (a 2.75x improvement)
+- **Why this matters**: With only 10 connections, 22% of requests had to wait for an available connection, causing spikes in latency. With 16 connections, only 8% of requests experience this contention, resulting in more consistent performance.
 
 **Default:** cache-kit uses `max_connections: 16` and `min_connections: 4` as optimized defaults for typical 8-core systems.
 
@@ -446,32 +426,10 @@ let config = RedisConfig {
 
 For local development:
 
-```yaml
-version: '3.8'
-
-services:
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-
-  memcached:
-    image: memcached:1.6-alpine
-    ports:
-      - "11211:11211"
-    command: memcached -m 64  # 64MB memory limit
-
-volumes:
-  redis_data:
-```
-
 Start services:
 
 ```bash
-docker-compose up -d
+make up
 ```
 
 Test connectivity:
@@ -536,38 +494,9 @@ impl CacheMetrics {
 
 ---
 
-## Production Checklist
-
-Before deploying to production:
-
-### Redis
-
-- [ ] Enable persistence (AOF or RDB)
-- [ ] Set `maxmemory` policy
-- [ ] Enable authentication (`requirepass`)
-- [ ] Use TLS for network traffic
-- [ ] Configure backup strategy
-- [ ] Monitor memory usage
-- [ ] Set up replication or clustering
-
-### Memcached
-
-- [ ] Deploy multiple servers
-- [ ] Configure memory limits
-- [ ] Monitor server health
-- [ ] Plan for cache misses (no persistence)
-- [ ] Set up monitoring alerts
-
-### InMemory
-
-- [ ] ⚠️ **Not recommended for production**
-- [ ] Use only for proof-of-concept or single-instance services
-
----
-
 ## Next Steps
 
-- Review [Design principles](design-principles)
+- Review [Core Concepts](/cache-kit.rs/concepts) — Design philosophy and principles
 - Explore the [Actix + SQLx reference implementation](https://github.com/megamsys/cache-kit.rs/tree/main/examples/actixsqlx)
-- Read about [Serialization formats](serialization)
-- Check the [Installation guide](installation)
+- Read about [Serialization formats](/cache-kit.rs/serialization)
+- Check the [Installation guide](/cache-kit.rs/installation)

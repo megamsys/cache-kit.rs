@@ -218,6 +218,73 @@ async fn main() -> Result<()> {
     println!("     - Per-type TTL policies");
     println!("     - Multiple cache strategies");
 
+    // ========================================================================
+    // PER-OPERATION CONFIGURATION: Override TTL for specific operations
+    // ========================================================================
+    println!("\n5. Per-Operation Configuration Examples:\n");
+    println!("   ℹ️  The configurations above (TTL policy, metrics) are set at");
+    println!("      setup time and apply to all operations. For per-operation");
+    println!("      overrides, use OperationConfig or the operation builder:\n");
+
+    // Example 5a: Short-lived cache for flash sale products
+    println!("   Request 5a: Flash sale product with 1-minute TTL override");
+    let mut feeder = ProductFeeder {
+        id: "prod_001".to_string(),
+        product: None,
+    };
+
+    // Method 1: Explicit OperationConfig
+    let config = cache_kit::OperationConfig::default().with_ttl(Duration::from_secs(60)); // Override to 1 minute instead of 1 hour
+
+    expander
+        .with_config(&mut feeder, &repository, CacheStrategy::Refresh, config)
+        .await?;
+
+    if let Some(product) = &feeder.product {
+        println!(
+            "    ✓ Cached with 1-minute TTL: {} - ${:.2}",
+            product.name, product.price
+        );
+    }
+
+    println!();
+
+    // Example 5b: Critical operation with retry logic
+    println!("   Request 5b: Critical product lookup with retry");
+    let mut feeder = ProductFeeder {
+        id: "prod_002".to_string(),
+        product: None,
+    };
+
+    // Method 2: OperationConfig with both TTL and retry
+    let config = cache_kit::OperationConfig::default()
+        .with_ttl(Duration::from_secs(300)) // 5-minute TTL override
+        .with_retry(3); // Retry up to 3 times on failure
+
+    expander
+        .with_config(&mut feeder, &repository, CacheStrategy::Refresh, config)
+        .await?;
+
+    if let Some(product) = &feeder.product {
+        println!(
+            "    ✓ Loaded with retry protection: {} - ${:.2}",
+            product.name, product.price
+        );
+    }
+
+    println!();
+
+    // Example 5c: Compare setup-time vs per-operation config
+    println!("   ℹ️  Configuration Levels:\n");
+    println!("      Setup-time config (applies to all operations):");
+    println!("        - .with_metrics()      → Observability");
+    println!("        - .with_ttl_policy()   → Default TTL per entity type");
+    println!();
+    println!("      Per-operation config (overrides for specific calls):");
+    println!("        - .with_config()       → Explicit OperationConfig");
+    println!("          └─ .with_ttl()       → Override TTL for this call");
+    println!("          └─ .with_retry()     → Add retry logic for this call");
+
     println!("\n=== Example Complete ===\n");
 
     Ok(())

@@ -108,33 +108,6 @@ impl<T: CacheEntity> CacheFeed<T> for GenericFeeder<T> {
     }
 }
 
-/// Generic feeder for collections.
-pub struct CollectionFeeder<T: CacheEntity> {
-    pub id: String,
-    pub data: Vec<T>,
-}
-
-impl<T: CacheEntity> CollectionFeeder<T> {
-    pub fn new(id: String) -> Self {
-        CollectionFeeder {
-            id,
-            data: Vec::new(),
-        }
-    }
-}
-
-impl<T: CacheEntity> CacheFeed<Vec<T>> for CollectionFeeder<T> {
-    fn entity_id(&mut self) -> <Vec<T> as CacheEntity>::Key {
-        self.id.clone()
-    }
-
-    fn feed(&mut self, entities: Option<Vec<T>>) {
-        if let Some(items) = entities {
-            self.data = items;
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -177,26 +150,6 @@ mod tests {
     fn test_feeder_validation() {
         let feeder: GenericFeeder<TestEntity> = GenericFeeder::new("id".to_string());
         assert!(feeder.validate().is_ok());
-    }
-
-    #[test]
-    fn test_collection_feeder() {
-        let mut feeder: CollectionFeeder<TestEntity> =
-            CollectionFeeder::new("collection_1".to_string());
-
-        let entities = vec![
-            TestEntity {
-                id: "1".to_string(),
-                value: "a".to_string(),
-            },
-            TestEntity {
-                id: "2".to_string(),
-                value: "b".to_string(),
-            },
-        ];
-
-        feeder.feed(Some(entities.clone()));
-        assert_eq!(feeder.data.len(), 2);
     }
 
     #[test]
@@ -315,15 +268,6 @@ mod tests {
         feeder.on_miss("test:1").unwrap();
         assert_eq!(miss_keys.lock().unwrap().len(), 1);
         assert_eq!(miss_keys.lock().unwrap()[0], "test:1");
-    }
-
-    #[test]
-    fn test_collection_feeder_with_empty_data() {
-        let mut feeder: CollectionFeeder<TestEntity> =
-            CollectionFeeder::new("empty_collection".to_string());
-
-        feeder.feed(None);
-        assert_eq!(feeder.data.len(), 0);
     }
 
     #[test]

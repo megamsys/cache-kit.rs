@@ -3,10 +3,9 @@ layout: single
 title: Async Programming Model
 description: "Understanding cache-kit's async-first design and tokio integration"
 permalink: /async-model/
+nav_order: 6
+date: 2025-12-25
 ---
-
-
-
 
 ---
 
@@ -42,6 +41,7 @@ cache-kit = "0.9"
 ```
 
 The minimum required tokio features:
+
 - `rt` — Runtime support
 - `sync` — Synchronization primitives (Arc, Mutex, RwLock)
 - `macros` — `#[tokio::main]` attribute macro
@@ -56,53 +56,7 @@ The typical interaction flow follows this pattern:
 Async Database → Async Cache → Async Application
 ```
 
-### Example: Async Database to Async Cache
-
-```rust
-use cache_kit::{CacheEntity, CacheFeed, DataRepository, CacheExpander};
-use cache_kit::backend::InMemoryBackend;
-use cache_kit::strategy::CacheStrategy;
-use sqlx::PgPool;
-
-// Async repository using SQLx
-#[derive(Clone)]
-struct UserRepository {
-    pool: PgPool,
-}
-
-impl DataRepository<User> for UserRepository {
-    async fn fetch_by_id(&self, id: &String) -> cache_kit::Result<Option<User>> {
-        let user = sqlx::query_as::<_, User>(
-            "SELECT * FROM users WHERE id = $1"
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| cache_kit::Error::RepositoryError(e.to_string()))?;
-
-        Ok(user)
-    }
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let pool = PgPool::connect("postgres://localhost/mydb").await?;
-    let repo = UserRepository { pool };
-
-    let backend = InMemoryBackend::new();
-    let mut expander = CacheExpander::new(backend);
-
-    let mut feeder = UserFeeder {
-        id: "user_001".to_string(),
-        user: None,
-    };
-
-    // Cache operation works seamlessly within async context
-    expander.with(&mut feeder, &repo, CacheStrategy::Refresh).await?;
-
-    Ok(())
-}
-```
+All cache operations work seamlessly within async contexts. For detailed ORM integration examples (SQLx, SeaORM, Diesel), see [Database & ORM Compatibility](/cache-kit.rs/database-compatibility).
 
 ---
 
@@ -118,53 +72,21 @@ pub trait DataRepository<T: CacheEntity>: Send + Sync {
 
 This design is intentional and provides several benefits:
 
-### 1. Native Async Support
-
-Async trait methods align with modern Rust practices and integrate seamlessly with async databases.
-
-### 2. Flexibility
-
-You can use both sync and async database layers (see [Handling Sync Code](#handling-sync-code-in-async-repositories) section below).
-
-### 3. Backend Compatibility
-
-Cache backends (Redis, Memcached) are inherently async, and the async trait ensures compatibility across all patterns.
-
----
-
-## Async Database Integration
-
-The `DataRepository` trait is async, designed for seamless integration with modern async database drivers:
-
-```rust
-use sqlx::PgPool;
-use cache_kit::DataRepository;
-
-impl DataRepository<Product> for ProductRepository {
-    async fn fetch_by_id(&self, id: &String) -> cache_kit::Result<Option<Product>> {
-        // Direct async/await - no bridging needed
-        let product = sqlx::query_as!(
-            Product,
-            "SELECT id, name, price FROM products WHERE id = $1",
-            id
-        )
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| cache_kit::Error::RepositoryError(e.to_string()))?;
-
-        Ok(product)
-    }
-}
-```
+1. **Native async support** — Aligns with modern Rust practices and integrates seamlessly with async databases
+2. **Flexibility** — Works with both sync and async database layers (see [Database Compatibility](/cache-kit.rs/database-compatibility) for Diesel example using `spawn_blocking`)
+3. **Backend compatibility** — Cache backends (Redis, Memcached) are inherently async
 
 **Recommended async databases:**
+
 - **SQLx** — Async, compile-time checked SQL
 - **SeaORM** — Async ORM for Rust
 - **tokio-postgres** — Pure async PostgreSQL client
 
+For detailed repository implementation examples, see [Database & ORM Compatibility](/cache-kit.rs/database-compatibility).
+
 ### ⚠️ NEVER use block_in_place + block_on
 
-**NEVER use `block_in_place` + `Handle::current().block_on()`** — this pattern is incorrect. Always use `async fn` with `.await` for async databases.
+**NEVER use `block_in_place` + `Handle::current().block_on()`** — this pattern is incorrect. Always use `async fn` with `.await` for async databases. For synchronous ORMs like Diesel, use `tokio::task::spawn_blocking` (see [Database Compatibility](/cache-kit.rs/database-compatibility) for examples).
 
 ---
 
@@ -175,8 +97,8 @@ Cache backends are fully async and follow the same initialization pattern:
 ```rust
 // Redis
 use cache_kit::backend::{RedisBackend, RedisConfig};
-let config = RedisConfig { url: "redis://localhost:6379".to_string(), ..Default::default() };
-let backend = RedisBackend::new(config)?;
+let config = RedisConfig::default(); // Uses localhost:6379
+let backend = RedisBackend::new(config).await?;
 
 // Memcached
 use cache_kit::backend::{MemcachedBackend, MemcachedConfig};
@@ -211,122 +133,38 @@ You control:
 - Task spawning strategy
 - Shutdown behavior
 
-
-
----
-
-## Sync Support (Not Recommended)
-
-While cache-kit is async-first, you can use it in synchronous contexts if absolutely necessary by creating a runtime:
-
-```rust
-use tokio::runtime::Runtime;
-
-fn sync_cache_operation() -> Result<(), Box<dyn std::error::Error>> {
-    let runtime = Runtime::new()?;
-
-    runtime.block_on(async {
-        let backend = InMemoryBackend::new();
-        let mut expander = CacheExpander::new(backend);
-        
-        expander.with(&mut feeder, &repo, CacheStrategy::Refresh).await?;
-        Ok(())
-    })
-}
-
-// Or from within an existing async context:
-// let handle = tokio::runtime::Handle::current();
-// handle.block_on(async { ... })
-```
-
-**Important:** These patterns are provided for compatibility only. Async-first design is strongly recommended for production services.
-
 ---
 
 ## Best Practices
 
 ### DO
 
-✅ Use `tokio::main` for your application entry point
-✅ Make `DataRepository::fetch_by_id` an async function
-✅ Use async database drivers (SQLx, SeaORM, tokio-postgres)
-✅ Let cache-kit operate within your existing runtime
-✅ Keep async boundaries explicit and clear
+- ✅ Use `tokio::main` for your application entry point
+- ✅ Make `DataRepository::fetch_by_id` an async function
+- ✅ Use async database drivers (SQLx, SeaORM, tokio-postgres)
+- ✅ Let cache-kit operate within your existing runtime
+- ✅ Keep async boundaries explicit and clear
 
 ### DON'T
 
-❌ Use `block_in_place` + `block_on` (incorrect pattern)
-❌ Call `block_on` inside async contexts
-❌ Create multiple tokio runtimes unnecessarily
-❌ Assume cache-kit manages runtime lifecycle
+- ❌ Use `block_in_place` + `block_on` (incorrect pattern)
+- ❌ Call `block_on` inside async contexts
+- ❌ Create multiple tokio runtimes unnecessarily
+- ❌ Assume cache-kit manages runtime lifecycle
 
 ---
 
 ## Example: Full Async Service
 
-Here's a complete example of a tokio-based service using cache-kit:
+For complete working examples of tokio-based services using cache-kit with async operations:
 
-```rust
-use cache_kit::{CacheEntity, CacheFeed, DataRepository, CacheService};
-use cache_kit::backend::RedisBackend;
-use cache_kit::strategy::CacheStrategy;
-use axum::{Router, routing::get, extract::State};
-use sqlx::PgPool;
-use std::sync::Arc;
-
-// Your entities, feeders, and repository implementations
-
-struct AppState {
-    cache: CacheService<RedisBackend>,
-    repo: Arc<UserRepository>,
-}
-
-async fn get_user(
-    State(state): State<Arc<AppState>>,
-    axum::extract::Path(user_id): axum::extract::Path<String>,
-) -> Result<String, String> {
-    let mut feeder = UserFeeder {
-        id: user_id,
-        user: None,
-    };
-
-    state.cache
-        .execute(&mut feeder, &*state.repo, CacheStrategy::Refresh)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(format!("User: {:?}", feeder.user))
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Database setup
-    let pool = PgPool::connect("postgres://localhost/mydb").await?;
-    let repo = Arc::new(UserRepository { pool });
-
-    // Cache setup
-    let config = cache_kit::backend::RedisConfig::default();
-    let cache = CacheService::new(RedisBackend::new(config)?);
-
-    // Application state
-    let state = Arc::new(AppState { cache, repo });
-
-    // HTTP server (async all the way)
-    let app = Router::new()
-        .route("/users/:id", get(get_user))
-        .with_state(state);
-
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await?;
-    axum::serve(listener, app).await?;
-
-    Ok(())
-}
-```
+- **[examples/actixsqlx](https://github.com/megamsys/cache-kit.rs/tree/main/examples/actixsqlx)** — Actix Web integration with SQLx, async database operations, and cache-kit's async API
+- **[examples/actixsqlx/src/services/user_service.rs](https://github.com/megamsys/cache-kit.rs/tree/main/examples/actixsqlx/src/services/user_service.rs)** — Service layer implementation with caching
 
 ---
 
 ## Next Steps
 
-- Learn about [Core Concepts](concepts) in cache-kit
-- Explore [Database & ORM Compatibility](database-compatibility)
-- Review the [Actix + SQLx reference implementation](https://github.com/megamsys/cache-kit.rs/tree/main/examples/actixsqlx)
+- Learn about [Core Concepts](/cache-kit.rs/concepts) in cache-kit
+- Explore [Database & ORM Compatibility](/cache-kit.rs/database-compatibility) for detailed ORM integration examples
+- Review [API Frameworks](/cache-kit.rs/api-frameworks) for framework-specific integration patterns

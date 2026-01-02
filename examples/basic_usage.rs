@@ -179,7 +179,65 @@ async fn main() -> Result<()> {
         );
     }
 
+    // ========================================================================
+    // ADVANCED USAGE: Per-Operation Configuration
+    // ========================================================================
+    // For most use cases, the simple .with() method above is sufficient.
+    // However, if you need to override TTL or add retry logic for specific
+    // operations, you can use one of the advanced patterns below:
+
+    println!("\n=== Advanced Usage Examples ===\n");
+
+    // 7. Advanced: Explicit config with TTL override and retry
+    println!("7. Advanced: Using OperationConfig for TTL override:");
+    let mut feeder = EmploymentFeeder {
+        id: "emp_001".to_string(),
+        employment: None,
+    };
+
+    // Create a config with custom TTL and retry logic
+    let config = cache_kit::OperationConfig::default()
+        .with_ttl(std::time::Duration::from_secs(300)) // Cache for 5 minutes instead of default
+        .with_retry(3); // Retry up to 3 times on failure
+
+    expander
+        .with_config(&mut feeder, &repository, CacheStrategy::Refresh, config)
+        .await?;
+
+    if let Some(emp) = &feeder.employment {
+        println!(
+            "   ✓ Employment loaded with custom TTL: {} (${:.2})\n",
+            emp.employer_name, emp.salary
+        );
+    }
+
+    // 8. Advanced: Fluent builder pattern (same as above, but more ergonomic)
+    println!("8. Advanced: Using OperationConfig for TTL override and retry:");
+    let mut feeder = EmploymentFeeder {
+        id: "emp_002".to_string(),
+        employment: None,
+    };
+
+    let config = cache_kit::OperationConfig::default()
+        .with_ttl(std::time::Duration::from_secs(300))
+        .with_retry(3);
+
+    expander
+        .with_config(&mut feeder, &repository, CacheStrategy::Refresh, config)
+        .await?;
+
+    if let Some(emp) = &feeder.employment {
+        println!(
+            "   ✓ Employment loaded with config: {} (${:.2})\n",
+            emp.employer_name, emp.salary
+        );
+    }
+
     println!("=== Example Complete ===\n");
+
+    println!("\nℹ️  Note: OperationConfig is useful when you need per-operation");
+    println!("   TTL overrides or retry logic. For 90% of use cases,");
+    println!("   the simple .with() method is recommended.\n");
 
     Ok(())
 }

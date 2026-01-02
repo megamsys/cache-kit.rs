@@ -4,6 +4,12 @@ Contributions welcome! Please follow these guidelines:
 
 ## Development Setup
 
+- Fork / Clone
+
+- Start [Amp](https://ampcode.com), [Claude Code](https://claude.ai/code), [Kilo code](https://kilo.ai)
+
+- Fix the issue
+
 ```bash
 make dev
 make test
@@ -19,7 +25,7 @@ make build
 
 ## Code Standards
 
-- Follow Rust [naming conventions](./RUST_GUIDELINES.txt)
+- Follow Rust [conventions(agent friendly)](./RUST_GUIDELINES.txt)
 - Use meaningful variable/function names
 - Keep functions small and focused
 - Add doc comments for public APIs
