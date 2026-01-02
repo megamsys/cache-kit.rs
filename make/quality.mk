@@ -11,7 +11,7 @@
 
 _run-tests: _check-rust
 	@echo "→ Running tests..."
-	$(CARGO) test $(FEATURES) --verbose -- --test-threads=1; \
+	$(CARGO) test $(FEATURES); \
 
 _audit:
 	@echo "→ Running security audit..."
