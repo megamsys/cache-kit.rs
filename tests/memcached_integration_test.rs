@@ -538,9 +538,13 @@ async fn test_memcached_mdelete() {
         backend.set(key, b"value".to_vec(), None).await.unwrap();
     }
 
-    // Verify keys exist
+    // Small delay to ensure Memcached has processed all writes
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // Verify keys exist using get() to ensure they were actually set
     for key in &test_keys {
-        assert!(backend.exists(key).await.unwrap());
+        let value = backend.get(key).await.unwrap();
+        assert!(value.is_some(), "Key {} should exist after SET", key);
     }
 
     // Multi-delete
@@ -552,7 +556,8 @@ async fn test_memcached_mdelete() {
 
     // Verify all deleted
     for key in &test_keys {
-        assert!(!backend.exists(key).await.unwrap());
+        let value = backend.get(key).await.unwrap();
+        assert!(value.is_none(), "Key {} should be deleted", key);
     }
     println!("✓ MDELETE operation successful");
 }
