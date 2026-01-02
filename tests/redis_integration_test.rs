@@ -12,7 +12,11 @@
 //! make up
 //! cargo test --features redis --test redis_integration_test
 //!
+//! # Run ignored tests (like clear_all) separately to avoid interfering with parallel tests
+//! cargo test --features redis --test redis_integration_test -- --ignored
 //! ```
+//!
+//! **Note:** Tests use unique key prefixes per test to avoid conflicts when run in parallel.
 //!
 //! ## Environment Variables
 //!
@@ -34,12 +38,33 @@ use cache_kit::repository::InMemoryRepository;
 use cache_kit::{CacheEntity, CacheExpander, CacheStrategy};
 use serde::{Deserialize, Serialize};
 use std::env;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
+
+/// Global counter for generating unique test IDs
+static TEST_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Helper: Get Redis connection URL from environment or use default
 fn get_redis_url() -> String {
     env::var("TEST_REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string())
+}
+
+/// Helper: Generate a unique test key prefix for test isolation
+///
+/// Each test gets a unique prefix combining a counter and thread ID,
+/// ensuring tests can run in parallel without key conflicts.
+fn unique_test_key(base: &str) -> String {
+    let id = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
+    let thread_id = std::thread::current().id();
+    format!("test:{:?}:{}:{}", thread_id, id, base)
+}
+
+/// Helper: Generate multiple unique test keys
+fn unique_test_keys(base: &str, count: usize) -> Vec<String> {
+    (0..count)
+        .map(|i| unique_test_key(&format!("{}:{}", base, i)))
+        .collect()
 }
 
 /// Helper: Create a test Redis backend
@@ -56,6 +81,13 @@ async fn is_redis_available() -> bool {
     match create_test_backend().await {
         Ok(backend) => backend.health_check().await.unwrap_or(false),
         Err(_) => false,
+    }
+}
+
+/// Helper: Cleanup test keys (best effort - ignores errors)
+async fn cleanup_keys(backend: &RedisBackend, keys: &[String]) {
+    for key in keys {
+        let _ = backend.delete(key).await;
     }
 }
 
@@ -133,18 +165,18 @@ async fn test_redis_basic_set_get() {
         .await
         .expect("Failed to create Redis backend");
 
-    let test_key = "test:integration:key1";
+    let test_key = unique_test_key("key1");
     let test_value = b"Hello from cache-kit!".to_vec();
 
     // Set a value
     backend
-        .set(test_key, test_value.clone(), None)
+        .set(&test_key, test_value.clone(), None)
         .await
         .expect("SET should succeed");
     println!("✓ SET operation successful");
 
     // Get the value back
-    let retrieved_value = backend.get(test_key).await.expect("GET should not error");
+    let retrieved_value = backend.get(&test_key).await.expect("GET should not error");
 
     assert!(retrieved_value.is_some(), "Value should exist in cache");
     assert_eq!(
@@ -156,10 +188,7 @@ async fn test_redis_basic_set_get() {
     println!("✓ Values match");
 
     // Clean up
-    backend
-        .delete(test_key)
-        .await
-        .expect("DELETE should succeed");
+    cleanup_keys(&backend, &[test_key]).await;
     println!("✓ Cleanup successful");
 }
 
@@ -176,8 +205,9 @@ async fn test_redis_get_nonexistent_key() {
         .await
         .expect("Failed to create Redis backend");
 
+    let test_key = unique_test_key("nonexistent");
     let result = backend
-        .get("test:nonexistent:key")
+        .get(&test_key)
         .await
         .expect("GET should not error");
 
@@ -198,23 +228,23 @@ async fn test_redis_exists() {
         .await
         .expect("Failed to create Redis backend");
 
-    let test_key = "test:exists:key";
+    let test_key = unique_test_key("exists");
 
     // Key should not exist initially
-    assert!(!backend.exists(test_key).await.expect("EXISTS check failed"));
+    assert!(!backend.exists(&test_key).await.expect("EXISTS check failed"));
 
     // Set key
     backend
-        .set(test_key, b"value".to_vec(), None)
+        .set(&test_key, b"value".to_vec(), None)
         .await
         .expect("SET failed");
 
     // Key should exist now
-    assert!(backend.exists(test_key).await.expect("EXISTS check failed"));
+    assert!(backend.exists(&test_key).await.expect("EXISTS check failed"));
     println!("✓ EXISTS check works correctly");
 
     // Clean up
-    backend.delete(test_key).await.expect("DELETE failed");
+    cleanup_keys(&backend, &[test_key]).await;
 }
 
 // =============================================================================
@@ -234,18 +264,18 @@ async fn test_redis_ttl_expiration() {
         .await
         .expect("Failed to create Redis backend");
 
-    let test_key = "test:ttl:key1";
+    let test_key = unique_test_key("ttl");
     let test_value = b"expires in 1 second".to_vec();
 
     // Set value with 1-second TTL
     backend
-        .set(test_key, test_value.clone(), Some(Duration::from_secs(1)))
+        .set(&test_key, test_value.clone(), Some(Duration::from_secs(1)))
         .await
         .expect("SET with TTL should succeed");
     println!("✓ SET with 1-second TTL successful");
 
     // Verify immediate retrieval works
-    let immediate_result = backend.get(test_key).await.expect("GET should not error");
+    let immediate_result = backend.get(&test_key).await.expect("GET should not error");
     assert!(
         immediate_result.is_some(),
         "Value should exist immediately after SET"
@@ -257,7 +287,7 @@ async fn test_redis_ttl_expiration() {
     tokio::time::sleep(Duration::from_secs(2)).await;
 
     // Verify key no longer exists
-    let expired_result = backend.get(test_key).await.expect("GET should not error");
+    let expired_result = backend.get(&test_key).await.expect("GET should not error");
     assert!(
         expired_result.is_none(),
         "Value should be expired after TTL"
@@ -278,12 +308,12 @@ async fn test_redis_ttl_no_expiration() {
         .await
         .expect("Failed to create Redis backend");
 
-    let test_key = "test:no_ttl:key";
+    let test_key = unique_test_key("no_ttl");
     let test_value = b"persistent value".to_vec();
 
     // Set value without TTL
     backend
-        .set(test_key, test_value.clone(), None)
+        .set(&test_key, test_value.clone(), None)
         .await
         .expect("SET should succeed");
 
@@ -291,12 +321,12 @@ async fn test_redis_ttl_no_expiration() {
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // Value should still exist
-    let result = backend.get(test_key).await.expect("GET failed");
+    let result = backend.get(&test_key).await.expect("GET failed");
     assert!(result.is_some(), "Persistent key should still exist");
     println!("✓ Persistent key (no TTL) works correctly");
 
     // Clean up
-    backend.delete(test_key).await.expect("DELETE failed");
+    cleanup_keys(&backend, &[test_key]).await;
 }
 
 // =============================================================================
@@ -316,8 +346,8 @@ async fn test_redis_batch_operations() {
         .await
         .expect("Failed to create Redis backend");
 
-    // Prepare 10 test keys
-    let test_keys: Vec<String> = (0..10).map(|i| format!("test:batch:key{}", i)).collect();
+    // Prepare 10 test keys with unique prefixes
+    let test_keys = unique_test_keys("batch", 10);
 
     let test_values: Vec<Vec<u8>> = (0..10)
         .map(|i| format!("value_{}", i).into_bytes())
@@ -332,18 +362,6 @@ async fn test_redis_batch_operations() {
     }
     println!("✓ Set 10 keys successfully");
 
-    // Verify keys were set by getting them individually
-    for (i, key) in test_keys.iter().enumerate() {
-        let val = backend.get(key).await.expect("GET should not error");
-        if val.is_none() {
-            println!("⚠️  Key {} was not set! Trying again...", key);
-            backend
-                .set(key, test_values[i].clone(), None)
-                .await
-                .expect("Retry SET should succeed");
-        }
-    }
-
     // Small delay to ensure Redis has processed all writes
     tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -356,17 +374,6 @@ async fn test_redis_batch_operations() {
 
     assert_eq!(retrieved_values.len(), 10, "Should retrieve 10 values");
     println!("✓ MGET retrieved 10 values");
-
-    // Debug: Print what we got
-    for (i, retrieved) in retrieved_values.iter().enumerate() {
-        if retrieved.is_none() {
-            println!(
-                "⚠️  Value {} is None! Expected: {:?}",
-                i,
-                String::from_utf8_lossy(&test_values[i])
-            );
-        }
-    }
 
     // Verify all values are correct
     for (i, retrieved) in retrieved_values.iter().enumerate() {
@@ -414,22 +421,22 @@ async fn test_redis_mget_with_missing_keys() {
         .await
         .expect("Failed to create Redis backend");
 
+    let key1 = unique_test_key("mget_exists1");
+    let key2 = unique_test_key("mget_exists2");
+    let key_missing = unique_test_key("mget_missing");
+
     // Set only some keys
     backend
-        .set("test:mget:exists1", b"value1".to_vec(), None)
+        .set(&key1, b"value1".to_vec(), None)
         .await
         .expect("SET failed");
     backend
-        .set("test:mget:exists2", b"value2".to_vec(), None)
+        .set(&key2, b"value2".to_vec(), None)
         .await
         .expect("SET failed");
 
     // MGET with mix of existing and non-existing keys
-    let keys = vec![
-        "test:mget:exists1",
-        "test:mget:missing",
-        "test:mget:exists2",
-    ];
+    let keys = vec![key1.as_str(), key_missing.as_str(), key2.as_str()];
     let results = backend.mget(&keys).await.expect("MGET failed");
 
     assert_eq!(results.len(), 3);
@@ -439,10 +446,7 @@ async fn test_redis_mget_with_missing_keys() {
     println!("✓ MGET handles missing keys correctly");
 
     // Clean up
-    backend
-        .mdelete(&["test:mget:exists1", "test:mget:exists2"])
-        .await
-        .expect("MDELETE failed");
+    cleanup_keys(&backend, &[key1, key2]).await;
 }
 
 // =============================================================================
@@ -493,7 +497,7 @@ async fn test_redis_connection_pooling() {
     for i in 0..100 {
         let backend_clone = backend.clone();
         let handle = tokio::spawn(async move {
-            let key = format!("test:concurrent:key{}", i);
+            let key = unique_test_key(&format!("concurrent:{}", i));
             let value = format!("value_{}", i).into_bytes();
 
             // Perform SET and GET operations
@@ -539,28 +543,31 @@ async fn test_redis_pool_reuse() {
         .await
         .expect("Failed to create Redis backend");
 
+    let key1 = unique_test_key("pool_key1");
+    let key2 = unique_test_key("pool_key2");
+
     // Clone backend (shares the same pool)
     let backend1 = backend.clone();
     let backend2 = backend;
 
     // Both backends should work independently
     backend1
-        .set("test:pool:key1", b"value1".to_vec(), None)
+        .set(&key1, b"value1".to_vec(), None)
         .await
         .expect("SET failed");
     backend2
-        .set("test:pool:key2", b"value2".to_vec(), None)
+        .set(&key2, b"value2".to_vec(), None)
         .await
         .expect("SET failed");
 
     // Verify both keys exist
     assert!(backend1
-        .get("test:pool:key1")
+        .get(&key1)
         .await
         .expect("GET failed")
         .is_some());
     assert!(backend2
-        .get("test:pool:key2")
+        .get(&key2)
         .await
         .expect("GET failed")
         .is_some());
@@ -568,14 +575,7 @@ async fn test_redis_pool_reuse() {
     println!("✓ Cloned backends share connection pool correctly");
 
     // Clean up
-    backend1
-        .delete("test:pool:key1")
-        .await
-        .expect("DELETE failed");
-    backend2
-        .delete("test:pool:key2")
-        .await
-        .expect("DELETE failed");
+    cleanup_keys(&backend1, &[key1, key2]).await;
 }
 
 // =============================================================================
@@ -583,6 +583,7 @@ async fn test_redis_pool_reuse() {
 // =============================================================================
 
 #[tokio::test]
+#[ignore] // Ignored by default - FLUSHDB clears entire database and breaks parallel tests
 async fn test_redis_clear_all() {
     if !is_redis_available().await {
         println!("⚠️  Redis not available, skipping test");
