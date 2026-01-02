@@ -58,9 +58,6 @@ path = "examples/multiple_backends.rs"
 name = "advanced_builder"
 path = "examples/advanced_builder.rs"
 
-[[example]]
-name = "axum"
-path = "examples/axummetrics/main.rs"
 
 [[bench]]
 name = "cache_benchmark"

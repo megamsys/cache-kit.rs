@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -28,7 +28,7 @@ jobs:
     needs: checks
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -46,7 +46,7 @@ jobs:
       TEST_MEMCACHED_URL: localhost:11211
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -70,13 +70,38 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
+      - name: Install lcov merge tool
+        run: sudo apt-get update && sudo apt-get install -y lcov
+
       - name: Generate coverage
         run: |
+          # Run memcached integration tests with single thread (matching make test behavior)
+          echo "→ Running memcached integration tests with coverage (single-threaded)..."
           cargo llvm-cov \
-            --workspace \
+            --test memcached_integration_test \
             --all-features \
             --lcov \
-            --output-path lcov.info
+            --output-path lcov.memcached.info \
+            -- --test-threads=1
+
+          # Run all other tests with coverage
+          echo "→ Running all other tests with coverage..."
+          cargo llvm-cov \
+            --all-features \
+            --lcov \
+            --output-path lcov.others.info \
+            --lib \
+            --bins \
+            --test integration_test \
+            --test integration_serialization \
+            --test proptest_serialization \
+            --test redis_integration_test \
+            --test golden_blobs \
+            --test golden_blob_generator
+
+          # Merge coverage files
+          echo "→ Merging coverage files..."
+          lcov -a lcov.memcached.info -a lcov.others.info -o lcov.info
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
