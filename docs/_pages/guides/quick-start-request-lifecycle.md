@@ -7,8 +7,6 @@ nav_order: 4
 date: 2025-12-23
 ---
 
-## Overview
-
 This guide walks you through a complete HTTP request lifecycle with cache-kit, from the moment an HTTP request arrives to when the response is returned. You'll see exactly how cache hits and misses work, when the database is queried, and how the cache automatically populates.
 
 Understanding this flow is essential for effective cache-kit usage in production web services.

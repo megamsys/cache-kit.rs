@@ -9,7 +9,7 @@ date: 2025-12-28
 
 ---
 
-**Note:** cache-kit is framework-agnostic and works with any framework or transport. For the design philosophy behind this approach, see [Core Concepts](/concepts#integration-not-lock-in).
+cache-kit is framework-agnostic and works with any framework or transport. For the design philosophy behind this approach, see [Core Concepts](/concepts#integration-not-lock-in).
 
 ---
 

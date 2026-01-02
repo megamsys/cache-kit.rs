@@ -1,20 +1,17 @@
 ---
 layout: single
-title: Production Troubleshooting
+title: Troubleshooting
+description: "Diagnose and resolve cache-kit issues in production environments"
 parent: Guides
 nav_order: 13
 date: 2026-01-01
 ---
 
-Diagnose and resolve cache-kit issues in production environments.
+This guide covers the most common cache-kit issues, how to diagnose them, and how to fix them.
 
 ---
 
-## Overview
-
-This guide covers the most common cache-kit issues, how to diagnose them, and how to fix them.
-
-### Diagnostic Workflow
+## Diagnostic Workflow
 
 ```
 Issue Observed
@@ -372,4 +369,4 @@ match cache.with(&mut feeder, &repo, CacheStrategy::Refresh) {
 
 ## Next Steps
 
-- Set up [Monitoring and metrics](monitoring) to detect issues early
+- Set up [Monitoring and metrics](/guides/monitoring) to detect issues early

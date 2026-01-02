@@ -11,7 +11,7 @@ date: 2025-12-26
 
 ## ⚠️ Critical Limitation
 
-**Decimal types (`rust_decimal::Decimal`, `bigdecimal::BigDecimal`) are NOT supported by Postcard serialization.**
+Decimal types (`rust_decimal::Decimal`, `bigdecimal::BigDecimal`) are NOT supported by Postcard serialization.
 
 If your entities use Decimal fields (common in financial apps), you MUST convert to `String` or `i64` before caching. See [Decimal Types Not Supported](#decimal-types-not-supported) below.
 

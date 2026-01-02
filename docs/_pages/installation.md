@@ -1,6 +1,6 @@
 ---
 layout: single
-title: Installation & Configuration
+title: Installation
 description: "Getting started with cache-kit in your Rust project"
 permalink: /installation/
 nav_order: 2

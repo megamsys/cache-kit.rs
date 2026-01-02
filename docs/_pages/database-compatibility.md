@@ -7,11 +7,10 @@ nav_order: 8
 date: 2025-12-27
 ---
 
+ORM-Agnostic Design
+-- cache-kit does **not depend on ORMs**.
+
 ---
-
-## ORM-Agnostic Design
-
-cache-kit does **not depend on ORMs**.
 
 It operates on three simple concepts:
 

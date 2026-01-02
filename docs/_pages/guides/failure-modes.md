@@ -1,12 +1,11 @@
 ---
 layout: single
-title: Failure Modes & Error Handling
+title: Failure Modes & Resilience
+description: "Understanding cache-kit error behavior and failure modes for production deployments"
 parent: Guides
 nav_order: 11
 date: 2025-12-30
 ---
-
-## Understanding cache-kit Error Behavior
 
 cache-kit is designed to be **resilient by default** but requires you to understand failure modes for production deployments.
 

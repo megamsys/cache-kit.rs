@@ -1,15 +1,11 @@
 ---
 layout: single
-title: Core Concepts
+title: Concepts
 description: "Understanding the fundamental concepts behind cache-kit"
 permalink: /concepts/
 nav_order: 5
 date: 2025-12-24
 ---
-
----
-
-## Overview
 
 cache-kit is built around four core concepts that work together to provide clean, explicit caching boundaries:
 

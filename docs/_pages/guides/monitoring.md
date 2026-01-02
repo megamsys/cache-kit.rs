@@ -1,14 +1,11 @@
 ---
 layout: single
 title: Monitoring & Metrics
+description: "Set up production-grade monitoring, metrics, and observability for cache-kit"
 parent: Guides
 nav_order: 12
 date: 2025-12-31
 ---
-
----
-
-## Overview
 
 Monitoring cache-kit allows you to:
 
@@ -166,7 +163,7 @@ pub async fn get_user_with_metrics(
 
 ### Expose Metrics Endpoint
 
-See the [Axum example](https://github.com/megamsys/cache-kit.rs/tree/main/examples/axum) for a complete working implementation with:
+See the [Axum example](https://github.com/megamsys/cache-kit.rs/tree/main/examples/axummetrics) for a complete working implementation with:
 
 - Metrics HTTP endpoint
 - API server with cache instrumentation
@@ -267,6 +264,5 @@ groups:
 
 ## Next Steps
 
-- Read [Error Handling guide](error-handling) for handling metric anomalies
-- Check [Troubleshooting guide](troubleshooting) for diagnosis patterns
-- Review [Backends guide](../backends) for backend-specific metrics
+- Check [Troubleshooting guide](/guides/troubleshooting) for diagnosis patterns
+- Review [Backends guide](/backends) for backend-specific metrics

@@ -1,6 +1,6 @@
 ---
 layout: single
-title: Cache Backend Support
+title: Cache Backends
 description: "Understanding cache backends and choosing the right one for your use case"
 permalink: /backends/
 nav_order: 10

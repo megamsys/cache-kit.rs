@@ -273,4 +273,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 MIT License - Copyright (c) 2025 Kishore kumar Neelamegam
 
-See [LICENSE](https://github.com/megamsys/blob/main/LICENSE) for details.
+See [LICENSE](https://github.com/megamsys/cache-kit.rs/blob/main/LICENSE) for details.
