@@ -8,7 +8,7 @@ license = "MIT"
 description = "A type-safe, fully generic, production-ready caching framework for Rust"
 readme = "README.md"
 repository = "https://github.com/megamsys/cache-kit.rs"
-keywords = ["cache", "caching", "redis", "memcached", "backend-agnostic", "async"]
+keywords = ["cache", "redis", "memcached", "async"]
 categories = ["caching", "database", "redis", "memcached", "web-programming"]
 
 [dependencies]
