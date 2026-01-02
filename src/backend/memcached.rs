@@ -176,7 +176,7 @@ impl CacheBackend for MemcachedBackend {
         })?;
 
         match conn.get(key).await {
-            Ok(Some(_)) => Ok(true),
+            Ok(Some(value)) => Ok(value.data.is_some()),
             Ok(None) => Ok(false),
             Err(e) => Err(Error::BackendError(format!(
                 "Memcached EXISTS check failed for key {}: {}",

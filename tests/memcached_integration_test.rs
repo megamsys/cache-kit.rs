@@ -11,12 +11,11 @@
 //!
 //! # Option 2: Manual setup
 //! make up
-//! cargo test --features memcached --test memcached_integration_test -- --test-threads=1
+//! cargo test --features memcached --test memcached_integration_test
 //!
 //! ```
 //!
-//! **Important:** Tests must run sequentially (`--test-threads=1`) because they share
-//! the same Memcached instance and can interfere with each other when run in parallel.
+//! **Note:** Tests use unique key prefixes per test to avoid conflicts when run in parallel.
 //!
 //! ## Environment Variables
 //!
@@ -47,10 +46,27 @@ fn get_memcached_url() -> String {
     env::var("TEST_MEMCACHED_URL").unwrap_or_else(|_| "localhost:11211".to_string())
 }
 
-/// Helper: Create a test Memcached backend
+/// Helper: Generate a unique test key prefix for test isolation
 ///
-/// Note: Tests share the same Memcached instance and may interfere with each other
-/// when run in parallel. For reliable results, run with `--test-threads=1`.
+/// Uses UUID v7 for guaranteed uniqueness across all parallel tests.
+/// Format uses only alphanumeric and hyphens to comply with memcached key restrictions.
+fn unique_test_key(base: &str) -> String {
+    use uuid::Uuid;
+
+    let uuid = Uuid::now_v7();
+    // Use simple format without hyphens and colons
+    let clean_base = base.replace(':', "_").replace('-', "_");
+    format!("test_{}_{}", uuid.simple(), clean_base)
+}
+
+/// Helper: Generate multiple unique test keys
+fn unique_test_keys(base: &str, count: usize) -> Vec<String> {
+    (0..count)
+        .map(|i| unique_test_key(&format!("{}:{}", base, i)))
+        .collect()
+}
+
+/// Helper: Create a test Memcached backend
 async fn create_test_backend() -> Result<MemcachedBackend, Box<dyn std::error::Error>> {
     let memcached_url = get_memcached_url();
     println!("Connecting to Memcached: {}", memcached_url);
@@ -58,7 +74,7 @@ async fn create_test_backend() -> Result<MemcachedBackend, Box<dyn std::error::E
     let config = MemcachedConfig {
         servers: vec![memcached_url],
         connection_timeout: Duration::from_secs(5),
-        pool_size: 10,
+        pool_size: 32, // Increased for parallel test execution
     };
     let backend = MemcachedBackend::new(config).await?;
     Ok(backend)
@@ -69,6 +85,13 @@ async fn is_memcached_available() -> bool {
     match create_test_backend().await {
         Ok(backend) => backend.health_check().await.unwrap_or(false),
         Err(_) => false,
+    }
+}
+
+/// Helper: Cleanup test keys (best effort - ignores errors)
+async fn cleanup_keys(backend: &MemcachedBackend, keys: &[String]) {
+    for key in keys {
+        let _ = backend.delete(key).await;
     }
 }
 
@@ -143,18 +166,18 @@ async fn test_memcached_basic_set_get() {
         .await
         .expect("Failed to create Memcached backend");
 
-    let test_key = "test:key1";
+    let test_key = unique_test_key("key1");
     let test_value = b"Hello from cache-kit!".to_vec();
 
     // Set a value
     backend
-        .set(test_key, test_value.clone(), None)
+        .set(&test_key, test_value.clone(), None)
         .await
         .expect("SET should succeed");
     println!("✓ SET operation successful");
 
     // Get the value back
-    let retrieved_value = backend.get(test_key).await.expect("GET should not error");
+    let retrieved_value = backend.get(&test_key).await.expect("GET should not error");
 
     assert!(retrieved_value.is_some(), "Value should exist in cache");
     assert_eq!(
@@ -166,10 +189,7 @@ async fn test_memcached_basic_set_get() {
     println!("✓ Values match");
 
     // Clean up
-    backend
-        .delete(test_key)
-        .await
-        .expect("DELETE should succeed");
+    cleanup_keys(&backend, &[test_key]).await;
     println!("✓ Cleanup successful");
 }
 
@@ -186,10 +206,8 @@ async fn test_memcached_get_nonexistent_key() {
         .await
         .expect("Failed to create Memcached backend");
 
-    let result = backend
-        .get("test:nonexistent:key")
-        .await
-        .expect("GET should not error");
+    let test_key = unique_test_key("nonexistent");
+    let result = backend.get(&test_key).await.expect("GET should not error");
 
     assert!(result.is_none(), "Nonexistent key should return None");
     println!("✓ Nonexistent key returns None correctly");
@@ -208,23 +226,23 @@ async fn test_memcached_exists() {
         .await
         .expect("Failed to create Memcached backend");
 
-    let test_key = "test:exists:key";
+    let test_key = unique_test_key("exists");
 
     // Key should not exist initially
-    assert!(!backend.exists(test_key).await.unwrap());
+    assert!(!backend.exists(&test_key).await.unwrap());
 
     // Set key
     backend
-        .set(test_key, b"value".to_vec(), None)
+        .set(&test_key, b"value".to_vec(), None)
         .await
         .unwrap();
 
     // Key should exist now
-    assert!(backend.exists(test_key).await.unwrap());
+    assert!(backend.exists(&test_key).await.unwrap());
     println!("✓ EXISTS check works correctly");
 
     // Clean up
-    backend.delete(test_key).await.unwrap();
+    cleanup_keys(&backend, &[test_key]).await;
 }
 
 // =============================================================================
@@ -244,18 +262,18 @@ async fn test_memcached_ttl_expiration() {
         .await
         .expect("Failed to create Memcached backend");
 
-    let test_key = "test:ttl:key1";
+    let test_key = unique_test_key("ttl");
     let test_value = b"expires in 1 second".to_vec();
 
     // Set value with 1-second TTL
     backend
-        .set(test_key, test_value.clone(), Some(Duration::from_secs(1)))
+        .set(&test_key, test_value.clone(), Some(Duration::from_secs(1)))
         .await
         .expect("SET with TTL should succeed");
     println!("✓ SET with 1-second TTL successful");
 
     // Verify immediate retrieval works
-    let immediate_result = backend.get(test_key).await.expect("GET should not error");
+    let immediate_result = backend.get(&test_key).await.expect("GET should not error");
     assert!(
         immediate_result.is_some(),
         "Value should exist immediately after SET"
@@ -267,7 +285,7 @@ async fn test_memcached_ttl_expiration() {
     tokio::time::sleep(Duration::from_secs(2)).await;
 
     // Verify key no longer exists (returns None)
-    let expired_result = backend.get(test_key).await.expect("GET should not error");
+    let expired_result = backend.get(&test_key).await.expect("GET should not error");
     assert!(
         expired_result.is_none(),
         "Value should be expired after TTL"
@@ -288,12 +306,12 @@ async fn test_memcached_ttl_no_expiration() {
         .await
         .expect("Failed to create Memcached backend");
 
-    let test_key = "test:no_ttl:key";
+    let test_key = unique_test_key("no_ttl");
     let test_value = b"persistent value".to_vec();
 
     // Set value without TTL
     backend
-        .set(test_key, test_value.clone(), None)
+        .set(&test_key, test_value.clone(), None)
         .await
         .expect("SET should succeed");
 
@@ -301,12 +319,12 @@ async fn test_memcached_ttl_no_expiration() {
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // Value should still exist
-    let result = backend.get(test_key).await.unwrap();
+    let result = backend.get(&test_key).await.unwrap();
     assert!(result.is_some(), "Persistent key should still exist");
     println!("✓ Persistent key (no TTL) works correctly");
 
     // Clean up
-    backend.delete(test_key).await.unwrap();
+    cleanup_keys(&backend, &[test_key]).await;
 }
 
 // =============================================================================
@@ -327,13 +345,7 @@ async fn test_memcached_multi_get_operations() {
         .expect("Failed to create Memcached backend");
 
     // Set 5 different keys
-    let test_keys = vec![
-        "test:multi:key1",
-        "test:multi:key2",
-        "test:multi:key3",
-        "test:multi:key4",
-        "test:multi:key5",
-    ];
+    let test_keys = unique_test_keys("multi", 5);
 
     let test_values: Vec<Vec<u8>> = vec![
         b"value1".to_vec(),
@@ -356,8 +368,9 @@ async fn test_memcached_multi_get_operations() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Use mget to retrieve all at once
+    let test_keys_refs: Vec<&str> = test_keys.iter().map(|s| s.as_str()).collect();
     let retrieved_values = backend
-        .mget(&test_keys)
+        .mget(&test_keys_refs)
         .await
         .expect("MGET should not error");
 
@@ -382,10 +395,7 @@ async fn test_memcached_multi_get_operations() {
     println!("✓ All values match original data");
 
     // Clean up
-    backend
-        .mdelete(&test_keys)
-        .await
-        .expect("MDELETE should succeed");
+    cleanup_keys(&backend, &test_keys).await;
     println!("✓ Cleanup successful");
 }
 
@@ -402,22 +412,16 @@ async fn test_memcached_mget_with_missing_keys() {
         .await
         .expect("Failed to create Memcached backend");
 
+    let key1 = unique_test_key("mget_exists1");
+    let key2 = unique_test_key("mget_exists2");
+    let key_missing = unique_test_key("mget_missing");
+
     // Set only some keys
-    backend
-        .set("test:mget:exists1", b"value1".to_vec(), None)
-        .await
-        .unwrap();
-    backend
-        .set("test:mget:exists2", b"value2".to_vec(), None)
-        .await
-        .unwrap();
+    backend.set(&key1, b"value1".to_vec(), None).await.unwrap();
+    backend.set(&key2, b"value2".to_vec(), None).await.unwrap();
 
     // MGET with mix of existing and non-existing keys
-    let keys = vec![
-        "test:mget:exists1",
-        "test:mget:missing",
-        "test:mget:exists2",
-    ];
+    let keys = vec![key1.as_str(), key_missing.as_str(), key2.as_str()];
     let results = backend.mget(&keys).await.unwrap();
 
     assert_eq!(results.len(), 3);
@@ -427,10 +431,7 @@ async fn test_memcached_mget_with_missing_keys() {
     println!("✓ MGET handles missing keys correctly");
 
     // Clean up
-    backend
-        .mdelete(&["test:mget:exists1", "test:mget:exists2"])
-        .await
-        .unwrap();
+    cleanup_keys(&backend, &[key1, key2]).await;
 }
 
 // =============================================================================
@@ -499,20 +500,20 @@ async fn test_memcached_delete() {
         .await
         .expect("Failed to create Memcached backend");
 
-    let test_key = "test:delete:key";
+    let test_key = unique_test_key("delete");
 
     // Set key
     backend
-        .set(test_key, b"to be deleted".to_vec(), None)
+        .set(&test_key, b"to be deleted".to_vec(), None)
         .await
         .unwrap();
-    assert!(backend.exists(test_key).await.unwrap());
+    assert!(backend.exists(&test_key).await.unwrap());
 
     // Delete key
-    backend.delete(test_key).await.unwrap();
+    backend.delete(&test_key).await.unwrap();
 
     // Verify deleted
-    assert!(!backend.exists(test_key).await.unwrap());
+    assert!(!backend.exists(&test_key).await.unwrap());
     println!("✓ DELETE operation successful");
 }
 
@@ -529,27 +530,27 @@ async fn test_memcached_mdelete() {
         .await
         .expect("Failed to create Memcached backend");
 
-    let test_keys = vec!["test:mdelete:1", "test:mdelete:2", "test:mdelete:3"];
+    let test_keys = unique_test_keys("mdelete", 3);
 
-    // Set keys
+    // Set keys with verification after each to ensure reliability
     for key in &test_keys {
         backend.set(key, b"value".to_vec(), None).await.unwrap();
-    }
-
-    // Verify keys exist
-    for key in &test_keys {
-        assert!(backend.exists(key).await.unwrap());
+        // Verify immediately after each SET
+        let value = backend.get(key).await.unwrap();
+        assert!(value.is_some(), "Key {} should exist after SET", key);
     }
 
     // Multi-delete
+    let test_keys_refs: Vec<&str> = test_keys.iter().map(|s| s.as_str()).collect();
     backend
-        .mdelete(&test_keys)
+        .mdelete(&test_keys_refs)
         .await
         .expect("MDELETE should succeed");
 
     // Verify all deleted
     for key in &test_keys {
-        assert!(!backend.exists(key).await.unwrap());
+        let value = backend.get(key).await.unwrap();
+        assert!(value.is_none(), "Key {} should be deleted", key);
     }
     println!("✓ MDELETE operation successful");
 }

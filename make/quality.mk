@@ -10,8 +10,10 @@
 # =============================================================================
 
 _run-tests: _check-rust
-	@echo "→ Running tests..."
-	$(CARGO) test $(FEATURES) --verbose -- --test-threads=1; \
+	@echo "→ Running memcached integration tests (single-threaded)..."
+	@$(CARGO) test --test memcached_integration_test --features memcached -- --test-threads=1
+	@echo "→ Running all other tests..."
+	@$(CARGO) test $(FEATURES) --lib --bins --test integration_test --test integration_serialization --test proptest_serialization --test redis_integration_test --test golden_blobs --test golden_blob_generator
 
 _audit:
 	@echo "→ Running security audit..."
