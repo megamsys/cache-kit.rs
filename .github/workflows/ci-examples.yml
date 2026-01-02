@@ -3,16 +3,8 @@ name: CI - Examples (Actix+SQLx)
 on:
   push:
     branches: [main, develop]
-    paths:
-      - "examples/actixsqlx/**"
-      - "src/**"
-      - ".github/workflows/ci-examples.yml"
   pull_request:
     branches: [main, develop]
-    paths:
-      - "examples/actixsqlx/**"
-      - "src/**"
-      - ".github/workflows/ci-examples.yml"
 
 env:
   RUST_BACKTRACE: 1

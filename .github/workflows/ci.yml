@@ -3,22 +3,8 @@ name: CI - Main Library
 on:
   push:
     branches: [main, develop]
-    paths:
-      - "src/**"
-      - "tests/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - ".github/workflows/ci.yml"
-      - "!examples/**"
   pull_request:
     branches: [main, develop]
-    paths:
-      - "src/**"
-      - "tests/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - ".github/workflows/ci.yml"
-      - "!examples/**"
 
 env:
   RUST_BACKTRACE: 1
