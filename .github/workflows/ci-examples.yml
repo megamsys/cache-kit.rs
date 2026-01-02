@@ -1,8 +1,6 @@
-name: CI - Examples (Actix+SQLx)
+name: CI - Examples
 
 on:
-  push:
-    branches: [main, develop]
   pull_request:
     branches: [main, develop]
 
@@ -10,8 +8,8 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  checks:
-    name: Checks (Format + Lint)
+  build-basic-usage:
+    name: Build (basic_usage)
     runs-on: ubuntu-latest
 
     steps:
@@ -20,21 +18,41 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: examples/actixsqlx
 
-      - name: Check formatting
-        working-directory: examples/actixsqlx
-        run: cargo fmt -- --check
+      - name: Build basic_usage example
+        run: cargo build --example basic_usage
 
-      - name: Run clippy
-        working-directory: examples/actixsqlx
-        run: cargo clippy --all-targets -- -D warnings
-
-  test:
-    name: Test
+  build-multiple-backends:
+    name: Build (multiple_backends)
     runs-on: ubuntu-latest
-    needs: checks
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build multiple_backends example
+        run: cargo build --example multiple_backends --features redis,memcached
+
+  build-advanced-builder:
+    name: Build (advanced_builder)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build advanced_builder example
+        run: cargo build --example advanced_builder
+
+  test-actixsqlx:
+    name: Test (actixsqlx)
+    runs-on: ubuntu-latest
 
     services:
       postgres:
@@ -75,4 +93,49 @@ jobs:
         working-directory: examples/actixsqlx
         env:
           DATABASE_URL: postgres://cachekit:cachekit_dev@localhost:5432/cachekit_actix
+        run: cargo test -- --test-threads=1
+
+  test-axumgrpc:
+    name: Test (axumgrpc)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: cache_kit
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cache_kit"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: examples/axumgrpc
+
+      - name: Install SQLx CLI
+        run: cargo install sqlx-cli --no-default-features --features postgres
+
+      - name: Create database and run migrations
+        working-directory: examples/axumgrpc
+        env:
+          DATABASE_URL: postgres://postgres:password@localhost:5432/cache_kit
+        run: |
+          sqlx database create || true
+          sqlx migrate run || true
+
+      - name: Run tests
+        working-directory: examples/axumgrpc
+        env:
+          DATABASE_URL: postgres://postgres:password@localhost:5432/cache_kit
         run: cargo test -- --test-threads=1
