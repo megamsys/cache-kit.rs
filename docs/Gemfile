@@ -1,19 +1,15 @@
 source "https://rubygems.org"
 
-gem "jekyll", "~> 3.9"
-gem "minimal-mistakes-jekyll"
-gem "kramdown-parser-gfm"
+# Option 1: Use github-pages gem (recommended for GitHub Pages compatibility)
+# This ensures your local environment matches GitHub Pages exactly
+gem "github-pages", group: :jekyll_plugins
 
-# Ruby 3.4+ compatibility
+# Minimal Mistakes theme (compatible with GitHub Pages Jekyll 3.9.x)
+gem "minimal-mistakes-jekyll"
+
+# Ruby 3.4+ compatibility gems
 gem "base64"
 gem "logger"
 gem "bigdecimal"
 gem "csv"
 gem "ostruct"
-
-group :jekyll_plugins do
-  gem "jekyll-seo-tag"
-  gem "jekyll-sitemap"
-  gem "jekyll-gist"
-  gem "jekyll-include-cache"
-end
