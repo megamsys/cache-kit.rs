@@ -9,7 +9,7 @@ description = "A type-safe, fully generic, production-ready caching framework fo
 readme = "README.md"
 repository = "https://github.com/megamsys/cache-kit.rs"
 keywords = ["cache", "redis", "memcached", "async"]
-categories = ["caching", "database", "redis", "memcached", "web-programming"]
+categories = ["asynchronous", "caching", "database"]
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
