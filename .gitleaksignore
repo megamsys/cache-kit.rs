@@ -1,0 +1,7 @@
+# gitleaks allowlist — fingerprints of verified false positives.
+# Format: <commit>:<file>:<rule>:<line>
+#
+# RUST_GUIDELINES.txt:942 — `let key = "..."` literal inside a #[test] that
+# demonstrates UserSecret Debug-redaction. Documentation/guidelines test
+# fixture, not a real credential. Committed 44f7f3d (Dec 30, 2025).
+44f7f3dbcf73adddf5ecff91577e6cd5eb298514:RUST_GUIDELINES.txt:generic-api-key:942

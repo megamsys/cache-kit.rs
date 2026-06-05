@@ -38,12 +38,37 @@ SPEC AUTHORING RULES (load-bearing — do not delete):
 
 ---
 
+## PR Intent & comprehension handshake
+
+> The bridge from spec to the merged PR. Makes the agent confirm it understood intent *before* writing code.
+
+- **PR title (eventual):** `feat(error): add structured ErrorCode + ErrorContext to cache_kit::Error`
+- **Intent (one sentence):** A service-layer consumer can match on a stable error code to dispatch retry-vs-fail-vs-surface without parsing `Display` strings, and existing v0.9.x consumers rebuild unchanged.
+- **Handshake (agent fills at PLAN, before EXECUTE):** the implementing agent restates the intent in its own words and lists `ASSUMPTIONS I'M MAKING: …`. A mismatch between that restatement and the Intent above → STOP and reconcile before any edit.
+
+---
+
 ## Applicable Rules
 
 - **Project rule source:** `RUST_GUIDELINES.txt` at repo root (90KB) — read sections covering error handling, public API stability, and trait bounds.
 - **`docs/greptile-learnings/RULES.md`** — universal repo discipline; applies to the diff.
 - **Semver discipline** — this is a v0.9.x change; the public `Error` enum is part of the consumed API. Changes must be additive (new variants, new methods) for v0.9.2. Removing or renaming existing variants is a v1.0 concern and out of scope here.
 - **Postcard envelope versioning** — if any error variant is serialized into a cache envelope (it shouldn't be — errors aren't cached), the envelope version rules in `src/serialization/` apply.
+
+---
+
+## Applicable Gates
+
+> Which Action-Triggered Guards this PR WILL trip, and how each stays clean. Rules ≠ Gates: rules are knowledge to read; gates fire on edits.
+
+| Gate | Fires? | Satisfaction strategy |
+|------|--------|-----------------------|
+| File & Function Length (≤350/≤50/≤70) | yes — `src/error.rs` is already 224 lines and grows | Split `ErrorCode` into `src/error/code.rs` and `ErrorContext` into `src/error/context.rs` (already in Files Changed); keep each new file well under 350. |
+| PUB / Struct-Shape | yes — new `ErrorCode` enum, `ErrorContext` struct, methods on `Error` | Additive only; every existing public name keeps its signature. Doc-comment every new `pub` item per the existing per-variant "Common causes / Recovery" voice. |
+| UFS (repeated/semantic literals) | yes — `"E{:04}"` format + numeric ranges | Named constants for the format width and each range boundary; no magic numbers scattered across call sites. |
+| ERROR REGISTRY | yes — this spec *defines* the code registry | Codes live in one enum with an exhaustive `Error::code()` match; numeric values pinned by golden fixture (Invariant 1). |
+| LOGGING | no | No new log call sites; errors are returned, not logged, by this surface. |
+| SCHEMA / ZIG / UI / DESIGN TOKEN | no | No `*.sql`, `*.zig`, or UI surface touched. |
 
 ---
 
@@ -60,6 +85,17 @@ SPEC AUTHORING RULES (load-bearing — do not delete):
 
 ---
 
+## Prior-Art / Reference Implementations
+
+> Mirror a known-good pattern instead of inventing.
+
+- **In-repo pattern to mirror:** `src/error.rs` — the existing `Error` enum, its `From` impls, and the per-variant doc-comment voice ("Common causes" / "Recovery"). The new `code()` mapping mirrors the existing `Display` impl's exhaustive match structure.
+- **Stable-code precedent:** `std::io::ErrorKind` (a flat, non-exhaustive enum mapping error kinds to a stable, matchable surface) is the canonical Rust shape for "match the kind, not the message." `ErrorCode` follows it, adding numeric stability + HTTP mapping.
+- **HTTP-status mapping precedent:** `http::StatusCode` constants — `http_status()` returns the raw `u16` rather than taking an `http` crate dependency (cache-kit stays framework-agnostic; consumers map the `u16` into their own framework's status type).
+- **Divergence:** unlike `io::ErrorKind`, `ErrorCode` pins each variant to a documented `u32` (golden-tested) because the value is a wire/observability contract, not just an in-process discriminant.
+
+---
+
 ## Files Changed (blast radius)
 
 | File | Action | Why |
@@ -73,6 +109,18 @@ SPEC AUTHORING RULES (load-bearing — do not delete):
 | `Cargo.toml` | EDIT | Bump `version = "0.9.2"`. |
 | `VERSION` | EDIT | `0.9.2`. |
 | `site/content/integration/error-handling.mdx` | CREATE | User-facing error catalog page (replaces the proposal's `docs/_pages/error-catalog.md` plan). Reachable at `/integration/error-handling`. |
+
+---
+
+## Decomposition & alternatives (patch vs refactor)
+
+> Match solution-size to problem-size; surface the call before approval.
+
+- **Chosen shape:** additive surface — new `ErrorCode`/`ErrorContext` types + accessor methods on the existing `Error`, with a single internal `variant → code` mapping. Existing tuple shapes are frozen. Split across `error/code.rs` + `error/context.rs` to respect the length gate.
+- **Alternatives considered:**
+  1. *Full reshape to `Variant { code, context, message }` structs (the v1.0 refactor).* Rejected for v0.9.2 — it breaks every existing `Error::SerializationError(s)` pattern match, making it a breaking change that belongs behind a major version.
+  2. *Minimal patch: a free function `error_code(&Error) -> u32` and nothing else.* Rejected — leaves retryability/HTTP-status as caller homework, so it doesn't actually solve the "dispatch retry-vs-fail-vs-surface" goal; consumers still string-match for the rest.
+- **Patch-vs-refactor verdict:** this is a **patch** (additive, no shape change) because the goal is reachable without breaking consumers. The full reshape is the right long game and is named explicitly in **Out of Scope** as the v1.0 follow-up.
 
 ---
 
@@ -245,6 +293,16 @@ grep '^version = ' Cargo.toml; cat VERSION
 ## Dead Code Sweep
 
 N/A — no files deleted. This is additive surface only.
+
+---
+
+## Discovery (consult log)
+
+> **Empty at creation.** Append as the work surfaces consults and decisions — the spec's running record where deferrals and skill outcomes are proven.
+
+- **Consults** — {Architecture / Legacy-Design / gate-flag triage: question asked + Indy's decision.}
+- **Skill chain outcomes** — {`/write-unit-test`, `/review`, `/review-pr`, `kishore-babysit-prs` results: iteration counts, findings dispositioned.}
+- **Deferrals** — every "deferred to follow-up" needs an Indy-acked verbatim quote here, format `> Indy (YYYY-MM-DD HH:MM): "<quote>" — context: <which item, why>`. An agent-unilateral deferral is incomplete scope, not deferral, and blocks CHORE(close).
 
 ---
 
