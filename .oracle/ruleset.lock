@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "profile": "cache-kit",
+  "ruleset_digest": "8b53fdd20b396d0a749aeb692e1941c8b310174adefc906e2dc91c6ca95a058e",
+  "files": {
+    ".oracle/managed-files.json": "ee292c48e4957ead4c4860eb4a848f3984b67f8b7c2e3d481d081b7a2f6d1f29",
+    ".oracle/profile.json": "ef835e80cd86f7037bfeb3703d61e20e75994f64e5c77a6c35b83f1f3765d21e",
+    "AGENTS.md": "7be2b4c06fbb14a5a17d3568df28b97daacd29c73301b69fcbb7f2d5023eb24d",
+    "audits/logging.sh": "f75bd9cf8ff875b326230aa30eed7dcb518befb3b35dfaaa10aac06944f0fa87",
+    "audits/msid-ui.sh": "31610c18b7cf17537b13b22e728a05e1dc97287b737a03344d82b603d28479e4",
+    "audits/ufs.sh": "ddafdb25932c27dc968b798a537b21304ff853ee464f447f8392fd43ba905aa6",
+    "dispatch/lib.sh": "e150ba8d74f4b07ac1b212f868917bf68b1ab07bdb7333d150e967bb848e544c",
+    "dispatch/write_any.md": "de954535ff2c11784366843dc0895c43900d9270a0f60d0cc9ee0b9543a9a4cf",
+    "dispatch/write_any.sh": "36265c0ff8cd5aa31348bc4fe51039488dbea3ebbb7ecbed5fd856f468ee8908",
+    "dispatch/write_documentation.md": "0d4a051550a2925e864d64f05ad2a02ede93bf35ebc4f4ed4db4994fa02f352f",
+    "dispatch/write_rust.md": "ed6f48c05bd528a81460bb6ac2f4dc376f8889ac7e57bca5b5f91ceb470b455a",
+    "dispatch/write_shell.md": "9d726314aba14d36d1181f2ac022f58d8c95ad08e1f7da130deae750dbc6eb8f",
+    "docs/DOCUMENTATION_RULES.md": "805a6bf0239d07c280d1a1fb1bfe5075108c178d8f42ad9646d0e0b3253f27b6",
+    "docs/greptile-learnings/RULES.md": "0d972dd7bc4f7b464c337feb574ca33ce403bff633ed8b48b192751db83ad023"
+  },
+  "modes": {
+    ".oracle/managed-files.json": "0644",
+    ".oracle/profile.json": "0644",
+    "AGENTS.md": "0644",
+    "audits/logging.sh": "0755",
+    "audits/msid-ui.sh": "0755",
+    "audits/ufs.sh": "0755",
+    "dispatch/lib.sh": "0755",
+    "dispatch/write_any.md": "0644",
+    "dispatch/write_any.sh": "0755",
+    "dispatch/write_documentation.md": "0644",
+    "dispatch/write_rust.md": "0644",
+    "dispatch/write_shell.md": "0644",
+    "docs/DOCUMENTATION_RULES.md": "0644",
+    "docs/greptile-learnings/RULES.md": "0644"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "profile": "cache-kit",
+  "files": [
+    ".oracle/managed-files.json",
+    ".oracle/profile.json",
+    "AGENTS.md",
+    "audits/logging.sh",
+    "audits/msid-ui.sh",
+    "audits/ufs.sh",
+    "dispatch/lib.sh",
+    "dispatch/write_any.md",
+    "dispatch/write_any.sh",
+    "dispatch/write_documentation.md",
+    "dispatch/write_rust.md",
+    "dispatch/write_shell.md",
+    "docs/DOCUMENTATION_RULES.md",
+    "docs/greptile-learnings/RULES.md"
+  ]
+}
