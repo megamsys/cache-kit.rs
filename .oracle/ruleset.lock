@@ -5,7 +5,7 @@
   "files": {
     ".oracle/managed-files.json": "ee292c48e4957ead4c4860eb4a848f3984b67f8b7c2e3d481d081b7a2f6d1f29",
     ".oracle/profile.json": "ef835e80cd86f7037bfeb3703d61e20e75994f64e5c77a6c35b83f1f3765d21e",
-    "AGENTS.md": "7be2b4c06fbb14a5a17d3568df28b97daacd29c73301b69fcbb7f2d5023eb24d",
+    "AGENTS.md": "a7d5abb9563eb7ab000aa486a3a5c31537e8623327a5d4405fafdfd3f4ba97b0",
     "audits/logging.sh": "f75bd9cf8ff875b326230aa30eed7dcb518befb3b35dfaaa10aac06944f0fa87",
     "audits/msid-ui.sh": "31610c18b7cf17537b13b22e728a05e1dc97287b737a03344d82b603d28479e4",
     "audits/ufs.sh": "ddafdb25932c27dc968b798a537b21304ff853ee464f447f8392fd43ba905aa6",
