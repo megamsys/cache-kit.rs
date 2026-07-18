@@ -1,1 +1,0 @@
-/Users/kishore/Projects/dotfiles/audits/deinit-pairs.sh
