@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "profile": "cache-kit",
-  "ruleset_digest": "3871083f6cd951fc33ad0345548664df75d5f0a619f2b4347f1afab7ab5972ea",
+  "ruleset_digest": "91092709648e7ac6ed2a5aa06621932506fae8a41657c1bd9cf1a256066c24cc",
   "files": {
     ".oracle/managed-files.json": "ee292c48e4957ead4c4860eb4a848f3984b67f8b7c2e3d481d081b7a2f6d1f29",
     ".oracle/profile.json": "ef835e80cd86f7037bfeb3703d61e20e75994f64e5c77a6c35b83f1f3765d21e",
-    "AGENTS.md": "c07a87d0b60ab8aa42ee628b2624f9ef725c90ff8b4c7bbb58f97d67b1ade291",
+    "AGENTS.md": "36a21fd4a00f11c7b4c9dd653a0fa424d9021047fce6bb34364ca680d88db58b",
     "audits/logging.sh": "f75bd9cf8ff875b326230aa30eed7dcb518befb3b35dfaaa10aac06944f0fa87",
     "audits/msid-ui.sh": "31610c18b7cf17537b13b22e728a05e1dc97287b737a03344d82b603d28479e4",
     "audits/ufs.sh": "ddafdb25932c27dc968b798a537b21304ff853ee464f447f8392fd43ba905aa6",
